@@ -31,7 +31,8 @@ public sealed record ReservationRequest(
     decimal TotalPrice,
     string GuestName,
     DocumentType DocumentType,
-    string DocumentNumber);
+    string DocumentNumber,
+    CancellationPolicy CancellationPolicy = CancellationPolicy.Flexible24Hours);
 
 public sealed record ReservationResponse(
     string Reference,
