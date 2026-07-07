@@ -43,6 +43,7 @@ public sealed class ReserveHotelCommandHandler
             request.RoomType,
             request.PerNightRate,
             request.TotalPrice,
+            request.CancellationPolicy,
             request.GuestName,
             request.DocumentType,
             request.DocumentNumber,

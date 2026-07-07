@@ -13,6 +13,7 @@ public sealed record ReservationDetails(
     RoomType RoomType,
     decimal PerNightRate,
     decimal TotalPrice,
+    CancellationPolicy CancellationPolicy,
     string GuestName,
     DocumentType DocumentType,
     string DocumentNumber,

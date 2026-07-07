@@ -274,6 +274,7 @@ public sealed class HotelStayBusinessTests
         Assert.NotNull(stored);
         Assert.Equal(request.GuestName, stored!.GuestName);
         Assert.Equal(request.TotalPrice, stored.TotalPrice);
+        Assert.Equal(request.CancellationPolicy, stored.CancellationPolicy);
     }
 
     [Fact]
@@ -301,7 +302,7 @@ public sealed class HotelStayBusinessTests
         var reservation = new ReservationDetails(
             "HST-TEST-123456", "room-1", "PremierStays", "Melbourne", DestinationCategory.Domestic,
             new DateOnly(2026, 12, 1), new DateOnly(2026, 12, 3), RoomType.Standard, 120m, 240m,
-            "Casey Guest", DocumentType.NationalId, "N123", DateTimeOffset.UtcNow);
+            CancellationPolicy.FreeCancellation48Hours, "Casey Guest", DocumentType.NationalId, "N123", DateTimeOffset.UtcNow);
         await store.SaveAsync(reservation, CancellationToken.None);
         var handler = new GetReservationByReferenceQueryHandler(store);
 
@@ -312,6 +313,7 @@ public sealed class HotelStayBusinessTests
         // Assert
         Assert.True(existing.Succeeded);
         Assert.Equal(reservation, existing.Value);
+        Assert.Equal(CancellationPolicy.FreeCancellation48Hours, existing.Value!.CancellationPolicy);
         Assert.False(missing.Succeeded);
         Assert.Equal(404, missing.StatusCode);
         Assert.Equal("Reservation not found.", missing.ErrorMessage);

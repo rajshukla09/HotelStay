@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using HotelStay.Application.Interfaces;
 using HotelStay.Application.Models;
 using HotelStay.Application.Queries;
+using HotelStay.Domain.Entities;
 using HotelStay.Domain.Enums;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -112,6 +113,38 @@ public sealed class HotelSearchTests : IClassFixture<WebApplicationFactory<Progr
         var response = await client.PostAsJsonAsync("/api/hotels/reserve", request);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+
+    [Fact]
+    public async Task ReservationLookupIncludesCancellationPolicy()
+    {
+        using var client = factory.CreateClient();
+        var request = new ReservationRequest(
+            "room-1",
+            "PremierStays",
+            "Sydney",
+            new DateOnly(2026, 9, 1),
+            new DateOnly(2026, 9, 4),
+            RoomType.Deluxe,
+            200m,
+            600m,
+            "Jordan Guest",
+            DocumentType.NationalId,
+            "DOC123456",
+            CancellationPolicy.NonRefundable);
+
+        var reserveResponse = await client.PostAsJsonAsync("/api/hotels/reserve", request);
+        Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
+        var confirmation = await reserveResponse.Content.ReadFromJsonAsync<ReservationResponse>();
+        Assert.NotNull(confirmation);
+
+        var lookupResponse = await client.GetAsync($"/api/hotels/reservation/{confirmation!.Reference}");
+
+        Assert.Equal(HttpStatusCode.OK, lookupResponse.StatusCode);
+        var details = await lookupResponse.Content.ReadFromJsonAsync<ReservationDetails>();
+        Assert.NotNull(details);
+        Assert.Equal(request.CancellationPolicy, details!.CancellationPolicy);
     }
 
     [Theory]
