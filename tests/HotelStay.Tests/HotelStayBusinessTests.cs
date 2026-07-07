@@ -2,6 +2,7 @@ using HotelStay.Application.Commands;
 using HotelStay.Application.Interfaces;
 using HotelStay.Application.Models;
 using HotelStay.Application.Queries;
+using HotelStay.Domain.Destinations;
 using HotelStay.Domain.Entities;
 using HotelStay.Domain.Enums;
 using HotelStay.Infrastructure.Providers;
@@ -96,6 +97,40 @@ public sealed class HotelStayBusinessTests
         Assert.Contains(firstSydneyResults, room => room.RoomType == RoomType.Suite);
     }
 
+
+    [Fact]
+    public async Task CatalogBackedProviders_ReturnEmptyResults_ForUnknownDestination()
+    {
+        // Arrange
+        var request = SearchRequest("Rome");
+        var premierStays = new PremierStaysProvider();
+        var budgetNests = new BudgetNestsProvider();
+
+        // Act
+        var premierResults = await premierStays.SearchAsync(request, CancellationToken.None);
+        var budgetResults = await budgetNests.SearchAsync(request, CancellationToken.None);
+
+        // Assert
+        Assert.Empty(premierResults);
+        Assert.Empty(budgetResults);
+    }
+
+    [Fact]
+    public async Task SearchHandler_WithCatalogBackedProviders_ReturnsEmptyResults_ForUnknownDestination()
+    {
+        // Arrange
+        var handler = new SearchHotelsQueryHandler([new PremierStaysProvider(), new BudgetNestsProvider()]);
+        var query = new SearchHotelsQuery("Rome", new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 4), null);
+
+        // Act
+        var result = await handler.HandleAsync(query, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.Succeeded);
+        Assert.NotNull(result.Value);
+        Assert.Empty(result.Value!);
+    }
+
     [Fact]
     public async Task SearchHandler_QueriesBothProviders_NormalizesTotals_FiltersRoomType_AndSortsByTotalPrice()
     {
@@ -142,6 +177,62 @@ public sealed class HotelStayBusinessTests
         // Assert
         Assert.True(result.Succeeded);
         Assert.Equal(expectedCategory, result.Value);
+    }
+
+
+    [Fact]
+    public void DestinationCatalog_DefinesRequiredDomesticAndInternationalCities()
+    {
+        Assert.Equal(["Sydney", "Melbourne"], DestinationCatalog.DomesticDestinations);
+        Assert.Equal(["London", "Paris", "Tokyo"], DestinationCatalog.InternationalDestinations);
+    }
+
+    [Theory]
+    [InlineData("London")]
+    [InlineData("Paris")]
+    [InlineData("Tokyo")]
+    public void DocumentValidation_AcceptsPassportForInternationalDestinations(string destination)
+    {
+        // Arrange
+        var service = new DocumentValidationService();
+
+        // Act
+        var result = service.Validate(destination, DocumentType.Passport, "P123456");
+
+        // Assert
+        Assert.True(result.Succeeded);
+        Assert.Equal(DestinationCategory.International, result.Value);
+    }
+
+    [Theory]
+    [InlineData("Sydney")]
+    [InlineData("Melbourne")]
+    public void DocumentValidation_AcceptsNationalIdForDomesticDestinations(string destination)
+    {
+        // Arrange
+        var service = new DocumentValidationService();
+
+        // Act
+        var result = service.Validate(destination, DocumentType.NationalId, "N123456");
+
+        // Assert
+        Assert.True(result.Succeeded);
+        Assert.Equal(DestinationCategory.Domestic, result.Value);
+    }
+
+    [Fact]
+    public void DocumentValidation_RejectsUnknownDestinationWith422()
+    {
+        // Arrange
+        var service = new DocumentValidationService();
+
+        // Act
+        var result = service.Validate("Rome", DocumentType.Passport, "P123456");
+
+        // Assert
+        Assert.False(result.Succeeded);
+        Assert.Equal(422, result.StatusCode);
+        Assert.Equal("Destination is not supported.", result.ErrorMessage);
     }
 
     [Fact]

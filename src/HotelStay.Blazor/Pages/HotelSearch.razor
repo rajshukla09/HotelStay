@@ -14,13 +14,23 @@
 
 <section class="content-card">
     <h2>Search availability</h2>
-    <p class="helper-text">Domestic: Sydney, Melbourne · International: London, Paris, Tokyo</p>
+    <p class="helper-text">@SearchCategoryHint</p>
 
     <EditForm Model="searchForm" OnValidSubmit="SearchAsync">
         <div class="form-grid">
             <label>
                 Destination
-                <InputText class="form-control" @bind-Value="searchForm.Destination" placeholder="Paris" />
+                <InputSelect class="form-control" @bind-Value="searchForm.Destination">
+                    <option value="">Select destination</option>
+                    @foreach (var destination in DestinationCatalog.Destinations)
+                    {
+                        <option value="@destination.Name">@destination.Name</option>
+                    }
+                </InputSelect>
+                @if (!string.IsNullOrWhiteSpace(SelectedDestinationHint))
+                {
+                    <span class="helper-text">@SelectedDestinationHint</span>
+                }
             </label>
             <label>
                 Check-in date
@@ -143,7 +153,7 @@
             <strong>@selectedRoom.HotelName</strong>
             <span>@selectedRoom.Provider · @selectedRoom.RoomType · @FormatCurrency(selectedRoom.TotalPrice)</span>
         </div>
-        <p class="helper-text">International destination requires Passport. Domestic destination accepts NationalId.</p>
+        <p class="helper-text">@GetDocumentGuidance(selectedRoom.Destination)</p>
 
         <EditForm Model="reservationForm" OnValidSubmit="ReserveAsync">
             <div class="form-grid">
@@ -223,6 +233,14 @@
     private bool isReserving;
     private bool isLookingUp;
     private bool sortDescending;
+
+    private string? SelectedDestinationHint => DestinationCatalog.TryGetCategory(searchForm.Destination, out var category)
+        ? $"{searchForm.Destination} is {FormatEnum(category)}."
+        : null;
+
+    private static string DomesticDestinationList => string.Join(", ", DestinationCatalog.DomesticDestinations);
+    private static string InternationalDestinationList => string.Join(", ", DestinationCatalog.InternationalDestinations);
+    private static string SearchCategoryHint => $"{DomesticDestinationList} = Domestic · {InternationalDestinationList} = International";
 
     private IEnumerable<HotelRoomResult> SortedResults => sortDescending
         ? results.OrderByDescending(room => room.TotalPrice)
@@ -338,6 +356,10 @@
         {
             searchValidationErrors.Add("Destination is required.");
         }
+        else if (!DestinationCatalog.IsKnownDestination(searchForm.Destination))
+        {
+            searchValidationErrors.Add("Select a supported destination.");
+        }
 
         if (!DateOnly.TryParse(searchForm.CheckIn, out var checkIn))
         {
@@ -384,6 +406,13 @@
             reservationValidationErrors.Add("Document number is required.");
         }
 
+        if (DestinationCatalog.TryGetCategory(room.Destination, out var category)
+            && category == DestinationCategory.International
+            && documentType != DocumentType.Passport)
+        {
+            reservationValidationErrors.Add("International destinations require a Passport document.");
+        }
+
         if (reservationValidationErrors.Count > 0)
         {
             return false;
@@ -401,6 +430,18 @@
         reservationForm.DocumentType = string.Empty;
         reservationForm.DocumentNumber = string.Empty;
         errorMessage = null;
+    }
+
+    private static string GetDocumentGuidance(string destination)
+    {
+        if (!DestinationCatalog.TryGetCategory(destination, out var category))
+        {
+            return "Select a supported destination before choosing document details.";
+        }
+
+        return category == DestinationCategory.International
+            ? $"{destination} is International. Passport is required for this reservation."
+            : $"{destination} is Domestic. NationalId is accepted for this reservation.";
     }
 
     private static string FormatCurrency(decimal amount) => amount.ToString("C");

@@ -53,6 +53,67 @@ public sealed class HotelSearchTests : IClassFixture<WebApplicationFactory<Progr
         Assert.All(results!, result => Assert.Equal(RoomType.Deluxe, result.RoomType));
     }
 
+    [Fact]
+    public async Task SearchEndpointReturnsEmptyResultsForUnknownDestination()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/hotels/search?destination=Rome&checkIn=2026-09-01&checkOut=2026-09-04");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var results = await response.Content.ReadFromJsonAsync<IReadOnlyList<HotelRoomResult>>();
+        Assert.NotNull(results);
+        Assert.Empty(results!);
+    }
+
+    [Fact]
+    public async Task ReserveEndpointReturns422ForInternationalNationalIdMismatch()
+    {
+        using var client = factory.CreateClient();
+        var request = new ReservationRequest(
+            "room-1",
+            "PremierStays",
+            "Tokyo",
+            new DateOnly(2026, 9, 1),
+            new DateOnly(2026, 9, 4),
+            RoomType.Deluxe,
+            200m,
+            600m,
+            "Jordan Guest",
+            DocumentType.NationalId,
+            "N123456");
+
+        var response = await client.PostAsJsonAsync("/api/hotels/reserve", request);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("International destinations require a Passport document.", body);
+    }
+
+    [Theory]
+    [InlineData("Tokyo", DocumentType.Passport)]
+    [InlineData("Sydney", DocumentType.NationalId)]
+    public async Task ReserveEndpointAcceptsCatalogDocumentMatches(string destination, DocumentType documentType)
+    {
+        using var client = factory.CreateClient();
+        var request = new ReservationRequest(
+            "room-1",
+            "PremierStays",
+            destination,
+            new DateOnly(2026, 9, 1),
+            new DateOnly(2026, 9, 4),
+            RoomType.Deluxe,
+            200m,
+            600m,
+            "Jordan Guest",
+            documentType,
+            "DOC123456");
+
+        var response = await client.PostAsJsonAsync("/api/hotels/reserve", request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
     [Theory]
     [InlineData("/api/hotels/search?checkIn=2026-09-01&checkOut=2026-09-04", "Destination is required.")]
     [InlineData("/api/hotels/search?destination=Paris&checkOut=2026-09-04", "Check-in date is required.")]
