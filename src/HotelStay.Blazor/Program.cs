@@ -9,17 +9,18 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-builder.Services.Configure<ApiSettings>(builder.Configuration.GetSection(nameof(ApiSettings)));
-builder.Services.AddScoped(sp =>
+var apiSettings = new ApiSettings
 {
-    var apiSettings = sp.GetRequiredService<IOptions<ApiSettings>>().Value;
-    if (string.IsNullOrWhiteSpace(apiSettings.BaseUrl))
-    {
-        throw new InvalidOperationException("ApiSettings:BaseUrl must be configured.");
-    }
+    BaseUrl = builder.Configuration[$"{nameof(ApiSettings)}:{nameof(ApiSettings.BaseUrl)}"] ?? string.Empty
+};
 
-    return new HttpClient { BaseAddress = new Uri(apiSettings.BaseUrl, UriKind.Absolute) };
-});
+if (string.IsNullOrWhiteSpace(apiSettings.BaseUrl))
+{
+    throw new InvalidOperationException("ApiSettings:BaseUrl must be configured.");
+}
+
+builder.Services.AddSingleton(apiSettings);
+builder.Services.AddScoped(_ => new HttpClient { BaseAddress = new Uri(apiSettings.BaseUrl, UriKind.Absolute) });
 builder.Services.AddScoped<IApiClient, ApiClient>();
 builder.Services.AddScoped<IHotelApiService, HotelApiService>();
 
