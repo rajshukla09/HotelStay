@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using HotelStay.Application.Interfaces;
 using HotelStay.Application.Models;
 using HotelStay.Application.Queries;
+using HotelStay.Domain.Entities;
 using HotelStay.Domain.Enums;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -51,6 +52,99 @@ public sealed class HotelSearchTests : IClassFixture<WebApplicationFactory<Progr
         Assert.NotNull(results);
         Assert.NotEmpty(results);
         Assert.All(results!, result => Assert.Equal(RoomType.Deluxe, result.RoomType));
+    }
+
+    [Fact]
+    public async Task SearchEndpointReturnsEmptyResultsForUnknownDestination()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/hotels/search?destination=Rome&checkIn=2026-09-01&checkOut=2026-09-04");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var results = await response.Content.ReadFromJsonAsync<IReadOnlyList<HotelRoomResult>>();
+        Assert.NotNull(results);
+        Assert.Empty(results!);
+    }
+
+    [Fact]
+    public async Task ReserveEndpointReturns422ForInternationalNationalIdMismatch()
+    {
+        using var client = factory.CreateClient();
+        var request = new ReservationRequest(
+            "room-1",
+            "PremierStays",
+            "Tokyo",
+            new DateOnly(2026, 9, 1),
+            new DateOnly(2026, 9, 4),
+            RoomType.Deluxe,
+            200m,
+            600m,
+            "Jordan Guest",
+            DocumentType.NationalId,
+            "N123456");
+
+        var response = await client.PostAsJsonAsync("/api/hotels/reserve", request);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("International destinations require a Passport document.", body);
+    }
+
+    [Theory]
+    [InlineData("Tokyo", DocumentType.Passport)]
+    [InlineData("Sydney", DocumentType.NationalId)]
+    public async Task ReserveEndpointAcceptsCatalogDocumentMatches(string destination, DocumentType documentType)
+    {
+        using var client = factory.CreateClient();
+        var request = new ReservationRequest(
+            "room-1",
+            "PremierStays",
+            destination,
+            new DateOnly(2026, 9, 1),
+            new DateOnly(2026, 9, 4),
+            RoomType.Deluxe,
+            200m,
+            600m,
+            "Jordan Guest",
+            documentType,
+            "DOC123456");
+
+        var response = await client.PostAsJsonAsync("/api/hotels/reserve", request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+
+    [Fact]
+    public async Task ReservationLookupIncludesCancellationPolicy()
+    {
+        using var client = factory.CreateClient();
+        var request = new ReservationRequest(
+            "room-1",
+            "PremierStays",
+            "Sydney",
+            new DateOnly(2026, 9, 1),
+            new DateOnly(2026, 9, 4),
+            RoomType.Deluxe,
+            200m,
+            600m,
+            "Jordan Guest",
+            DocumentType.NationalId,
+            "DOC123456",
+            CancellationPolicy.NonRefundable);
+
+        var reserveResponse = await client.PostAsJsonAsync("/api/hotels/reserve", request);
+        Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
+        var confirmation = await reserveResponse.Content.ReadFromJsonAsync<ReservationResponse>();
+        Assert.NotNull(confirmation);
+
+        var lookupResponse = await client.GetAsync($"/api/hotels/reservation/{confirmation!.Reference}");
+
+        Assert.Equal(HttpStatusCode.OK, lookupResponse.StatusCode);
+        var details = await lookupResponse.Content.ReadFromJsonAsync<ReservationDetails>();
+        Assert.NotNull(details);
+        Assert.Equal(request.CancellationPolicy, details!.CancellationPolicy);
     }
 
     [Theory]
