@@ -2,184 +2,347 @@
 
 ## Problem summary
 
-Build a Hotel Stay Availability application that allows a guest-facing frontend to request hotel availability for a destination and date range, then display normalized availability results returned by external hotel availability providers.
+Hotel Stay Availability is a .NET 8 case study application for searching hotel rooms by destination and stay dates, reserving a selected room, and looking up reservations by reference. The implemented solution includes an ASP.NET Core backend, a Blazor WebAssembly frontend, deterministic provider stubs, document validation rules, and an in-memory reservation store.
 
-This initial task establishes the repository, solution, project structure, and documentation only. Business logic, provider integrations, persistence, and production-ready validation are intentionally deferred.
+## Architecture
 
-## Assumptions
+The solution uses Clean Architecture with separate projects for domain concepts, application use cases, infrastructure implementations, API hosting, Blazor UI, and tests.
 
-- The system targets .NET 8.
-- The backend is a Minimal API that will eventually orchestrate availability searches across providers.
-- The frontend is a Blazor WebAssembly application that will call the backend API.
-- The first implementation will support two providers, with the design prepared for adding a third provider later.
-- Prices are represented in a single currency per result unless explicitly expanded later.
-- Dates are interpreted as local hotel stay dates, not instants in UTC.
-- Availability searches are read-only and do not reserve inventory.
-- Authentication, authorization, payment, booking, and user profiles are out of scope for the initial case study.
+- `HotelStay.Domain` contains shared domain enums, reservation details, and the supported destination catalog.
+- `HotelStay.Application` contains DTOs, lightweight CQRS-style commands and queries, handlers, application interfaces, and operation result types.
+- `HotelStay.Infrastructure` contains deterministic hotel providers, document validation, in-memory reservation storage, and dependency injection registration.
+- `HotelStay.Api` hosts ASP.NET Core Controllers, Swagger, CORS, global exception middleware, and application handler registration.
+- `HotelStay.Blazor` implements the guest-facing Blazor WebAssembly flow.
+- `HotelStay.Tests` contains API and business behavior tests.
+
+The backend uses Controllers rather than Minimal APIs. Search, reservation creation, and reservation lookup are grouped under `HotelsController`, while health is exposed by `HealthController`. The application layer uses lightweight CQRS naming and handler classes without MediatR: `SearchHotelsQueryHandler`, `ReserveHotelCommandHandler`, and `GetReservationByReferenceQueryHandler`.
+
+## Solution structure
+
+```text
+HotelStay.sln
+├── src/
+│   ├── HotelStay.Api/
+│   ├── HotelStay.Application/
+│   ├── HotelStay.Domain/
+│   ├── HotelStay.Infrastructure/
+│   └── HotelStay.Blazor/
+└── tests/
+    └── HotelStay.Tests/
+```
+
+## Supported destinations
+
+The implemented destination catalog is shared by providers, backend validation, and the Blazor UI.
+
+Domestic destinations:
+
+- Sydney
+- Melbourne
+
+International destinations:
+
+- London
+- Paris
+- Tokyo
+
+Unknown destinations are treated differently by operation:
+
+- Hotel search returns `200 OK` with an empty result list because providers return no rooms for unknown destinations.
+- Reservation validation returns `422 Unprocessable Entity` because reservations require a supported destination category.
 
 ## Domain models
 
-Planned domain concepts:
+Implemented domain enums:
 
-- `AvailabilitySearchRequest`
-  - Destination or hotel/location identifier.
-  - Check-in date.
-  - Check-out date.
-  - Guest count.
-  - Room count.
-- `AvailabilitySearchResult`
-  - Provider identifier.
-  - Hotel identifier.
-  - Hotel name.
-  - Room type identifier.
-  - Room type name.
-  - Availability status.
-  - Nightly price.
-  - Total price.
-  - Currency code.
-  - Cancellation policy summary.
-- `ProviderAvailabilityResult`
-  - Provider-specific normalized result returned to the orchestration layer.
-- `Money`
-  - Amount.
-  - ISO 4217 currency code.
-- `StayDateRange`
-  - Check-in date.
-  - Check-out date.
-  - Computed night count.
+- `DestinationCategory`: `Domestic`, `International`
+- `DocumentType`: `Passport`, `NationalId`
+- `RoomType`: `Standard`, `Deluxe`, `Suite`
+- `CancellationPolicy`: `FreeCancellation48Hours`, `Flexible24Hours`, `NonRefundable`
 
-These models are documented for planning only and are not implemented in this task.
+Implemented destination catalog:
+
+- `DestinationCatalog.Destinations`
+- `DestinationCatalog.DomesticDestinations`
+- `DestinationCatalog.InternationalDestinations`
+- `DestinationCatalog.TryGetCategory(...)`
+- `DestinationCatalog.IsKnownDestination(...)`
+
+Implemented reservation entity:
+
+```csharp
+public sealed record ReservationDetails(
+    string Reference,
+    string RoomId,
+    string Provider,
+    string Destination,
+    DestinationCategory DestinationCategory,
+    DateOnly CheckIn,
+    DateOnly CheckOut,
+    RoomType RoomType,
+    decimal PerNightRate,
+    decimal TotalPrice,
+    CancellationPolicy CancellationPolicy,
+    string GuestName,
+    DocumentType DocumentType,
+    string DocumentNumber,
+    DateTimeOffset CreatedAt);
+```
+
+## Application models
+
+Implemented API/application DTOs:
+
+```csharp
+public sealed record HotelSearchRequest(
+    string Destination,
+    DateOnly CheckIn,
+    DateOnly CheckOut,
+    RoomType? RoomType);
+
+public sealed record HotelRoomResult(
+    string RoomId,
+    string Provider,
+    string HotelName,
+    string Destination,
+    RoomType RoomType,
+    decimal PerNightRate,
+    decimal TotalPrice,
+    CancellationPolicy CancellationPolicy,
+    IReadOnlyList<string>? Amenities,
+    int? StarRating);
+
+public sealed record ReservationRequest(
+    string RoomId,
+    string Provider,
+    string Destination,
+    DateOnly CheckIn,
+    DateOnly CheckOut,
+    RoomType RoomType,
+    decimal PerNightRate,
+    decimal TotalPrice,
+    string GuestName,
+    DocumentType DocumentType,
+    string DocumentNumber,
+    CancellationPolicy CancellationPolicy = CancellationPolicy.Flexible24Hours);
+
+public sealed record ReservationResponse(
+    string Reference,
+    string Message,
+    decimal TotalPrice,
+    CancellationPolicy CancellationPolicy);
+```
 
 ## API contracts
-
-Planned API endpoints:
 
 ### `GET /health`
 
 Returns service health for local development and smoke testing.
 
-### `POST /api/availability/search`
-
-Searches for hotel stay availability.
-
-Request shape, planned:
+Successful response:
 
 ```json
 {
-  "destination": "NYC",
-  "checkInDate": "2026-09-01",
-  "checkOutDate": "2026-09-04",
-  "guests": 2,
-  "rooms": 1
+  "status": "Healthy"
 }
 ```
 
-Response shape, planned:
+### `GET /api/hotels/search`
+
+Searches deterministic providers for normalized hotel room results.
+
+Query parameters:
+
+- `destination` (`string`, required)
+- `checkIn` (`DateOnly`, required)
+- `checkOut` (`DateOnly`, required)
+- `roomType` (`RoomType`, optional: `Standard`, `Deluxe`, `Suite`)
+
+Example:
+
+```http
+GET /api/hotels/search?destination=Sydney&checkIn=2026-07-08&checkOut=2026-07-10
+```
+
+Successful response: `200 OK` with a JSON array of `HotelRoomResult` objects sorted by `TotalPrice` ascending.
+
+Validation response: `400 Bad Request` when required query parameters are missing or `checkOut` is not after `checkIn`.
+
+Error body shape:
 
 ```json
 {
-  "results": [
-    {
-      "provider": "ProviderA",
-      "hotelId": "hotel-123",
-      "hotelName": "Example Hotel",
-      "roomTypeId": "king-standard",
-      "roomTypeName": "Standard King",
-      "available": true,
-      "nightlyPrice": 199.99,
-      "totalPrice": 599.97,
-      "currency": "USD",
-      "cancellationPolicy": "Free cancellation before the configured cutoff."
-    }
-  ]
+  "error": "Error",
+  "message": "Check-out date must be after check-in date."
 }
 ```
 
-Error response shape, planned:
+### `POST /api/hotels/reserve`
+
+Creates an in-memory reservation after document validation succeeds.
+
+Request body shape:
 
 ```json
 {
-  "error": "ValidationFailed",
-  "details": ["Check-out date must be after check-in date."]
+  "roomId": "PremierStays-Sydney-ps-standard",
+  "provider": "PremierStays",
+  "destination": "Sydney",
+  "checkIn": "2026-07-08",
+  "checkOut": "2026-07-10",
+  "roomType": "Standard",
+  "perNightRate": 145,
+  "totalPrice": 290,
+  "guestName": "Alex Guest",
+  "documentType": "NationalId",
+  "documentNumber": "NAT-123456",
+  "cancellationPolicy": "FreeCancellation48Hours"
 }
 ```
 
-The availability endpoint is not implemented in this task.
+Successful response: `200 OK` with a `ReservationResponse` containing the generated reservation reference, message, total price, and cancellation policy.
 
-## Provider interface contract
+Validation responses:
 
-Planned provider abstraction:
+- `400 Bad Request` when `guestName` is missing.
+- `400 Bad Request` when `documentNumber` is missing.
+- `422 Unprocessable Entity` when the destination is unsupported.
+- `422 Unprocessable Entity` when an international destination is reserved with `NationalId` instead of `Passport`.
+
+### `GET /api/hotels/reservation/{reference}`
+
+Looks up an in-memory reservation by reference.
+
+Successful response: `200 OK` with `ReservationDetails`.
+
+Missing reservation response: `404 Not Found` with message `Reservation not found.`
+
+## Provider interface
+
+Implemented provider abstraction:
 
 ```csharp
-public interface IAvailabilityProvider
+public interface IHotelProvider
 {
     string ProviderName { get; }
 
-    Task<IReadOnlyCollection<ProviderAvailabilityResult>> SearchAsync(
-        AvailabilitySearchRequest request,
+    Task<IReadOnlyCollection<HotelRoomResult>> SearchAsync(
+        HotelSearchRequest request,
         CancellationToken cancellationToken);
 }
 ```
 
-Provider implementations should:
+Provider implementations:
 
-- Accept a normalized search request.
-- Return normalized availability results.
+- `PremierStaysProvider`
+  - Returns standard, deluxe, and suite rooms for known destinations.
+  - Includes amenities and star ratings.
+  - Normalizes provider-specific room categories and cancellation codes.
+- `BudgetNestsProvider`
+  - Returns available budget rooms for known destinations.
+  - Does not include amenities or star ratings.
+  - Filters out unavailable rooms; the Paris suite is unavailable.
+  - Normalizes numeric room type and cancellation tier values.
+
+Both providers:
+
+- Return an empty collection for unknown destinations.
+- Compute `TotalPrice` as `PerNightRate * night count`.
 - Respect cancellation tokens.
-- Isolate provider-specific DTOs, mapping, authentication, and error handling from the API layer.
-- Avoid leaking provider-specific response shapes into frontend contracts.
+- Return deterministic data for repeatable tests and review.
 
 ## Validation rules
 
-Planned validation rules:
+Search validation:
 
-- Destination is required.
-- Check-in date is required.
-- Check-out date is required.
-- Check-out date must be after check-in date.
-- Guest count must be at least 1.
-- Room count must be at least 1.
-- Guest and room counts must stay within configured maximums.
-- Date ranges may be limited by a configured maximum stay length.
-- Searches in the past may be rejected.
-- Currency codes must be valid ISO 4217 codes when supplied.
+- `destination` is required.
+- `checkIn` is required.
+- `checkOut` is required.
+- `checkOut` must be after `checkIn`.
+- Optional `roomType` filters results to matching room types.
+- Search does not reject unknown destinations; unknown destinations return no rooms.
+
+Reservation validation:
+
+- `guestName` is required.
+- `documentNumber` is required.
+- `destination` must exist in the shared destination catalog.
+- The document type must satisfy the destination category rules below.
+
+Document validation:
+
+- Domestic destinations accept `NationalId` and `Passport`.
+- International destinations require `Passport`.
+- International destinations with `NationalId` return `422 Unprocessable Entity` and message `International destinations require a Passport document.`
+- Unsupported reservation destinations return `422 Unprocessable Entity` and message `Destination is not supported.`
+
+## Reservation storage
+
+Reservations are stored in `InMemoryReservationStore`, which uses a case-insensitive `ConcurrentDictionary<string, ReservationDetails>` keyed by reservation reference.
+
+The generated reservation reference uses the format:
+
+```text
+HST-{yyyyMMdd}-{six-character uppercase hexadecimal hash}
+```
+
+The store is registered as a singleton. Reservations are not persisted across API process restarts.
 
 ## Frontend states
 
-Planned Blazor UI states:
+The Blazor WebAssembly UI implements the following states and flows:
 
-- Initial empty search form.
-- Client-side validation errors.
-- Loading/search in progress.
-- Results available.
-- No availability found.
-- Backend validation failure.
-- Provider partial failure with still-displayable results.
-- Unexpected error.
-- Retry-ready state after a failed search.
+- Initial hotel search form at `/hotels`.
+- Destination dropdown populated from `DestinationCatalog`.
+- Destination category hints for domestic and international destinations.
+- Client-side search validation for required destination and dates, supported destinations, and date ordering.
+- Loading state while search is in progress.
+- Results state with normalized provider room cards.
+- Empty-results state when no rooms are returned.
+- Sort order toggle for total price ascending or descending.
+- Reservation form for the selected room.
+- Client-side reservation validation for guest name, document type, document number, and international passport requirement.
+- Confirmation state after successful reservation.
+- Reservation lookup by reference.
+- Lookup not-found state when the API returns `404`.
+- API error message state for failed search or reservation calls.
 
-## Test strategy
+The frontend uses `IHotelApiService` and `IApiClient` abstractions. The API base URL is configuration-driven through Blazor app settings.
 
-Planned test coverage:
+## Testing strategy
 
-- Unit tests for validation rules.
-- Unit tests for provider response mapping.
-- Unit tests for provider orchestration and result normalization.
-- API tests for request/response contracts and error handling.
-- Frontend component tests for form state transitions, if component testing is added.
-- Smoke test that the API starts and exposes health checks.
-- Regression tests for adding future providers without changing API contracts.
+Implemented tests cover both API and business behavior:
 
-This task only creates the xUnit project and verifies the solution can build where the .NET SDK is available.
+- Health endpoint smoke test.
+- Hotel search endpoint returns normalized provider results sorted by total price.
+- Room type filtering.
+- Unknown search destinations return an empty result set.
+- Search query validation failures return `400 Bad Request`.
+- Swagger includes the hotel search endpoint in Development.
+- Provider determinism for `PremierStaysProvider` and `BudgetNestsProvider`.
+- Provider handling of unavailable rooms.
+- Destination catalog domestic and international city definitions.
+- Document validation for domestic and international destinations.
+- Unsupported reservation destination validation with `422`.
+- International `NationalId` mismatch validation with `422`.
+- Reservation creation stores reference, total price, guest details, and cancellation policy.
+- Reservation lookup returns details for an existing reference and `404` for a missing reference.
 
-## Extensibility notes for adding a third provider
+## Extensibility notes
 
-To add a third provider later:
+To add a third hotel provider:
 
-- Implement the shared `IAvailabilityProvider` contract in a provider-specific class.
-- Keep provider DTOs and mapping logic isolated in the provider implementation area.
-- Register the implementation with dependency injection without changing existing providers.
-- Add provider-specific configuration through options binding.
-- Add contract and mapping tests for the new provider.
-- Confirm API response contracts remain stable for the frontend.
-- Ensure provider failures can be handled independently so one provider outage does not necessarily fail the entire search.
+- Implement `IHotelProvider` in the Infrastructure project or a provider-specific infrastructure assembly.
+- Keep provider-specific DTOs, mapping, availability rules, and error handling isolated inside the provider implementation.
+- Normalize results to `HotelRoomResult` before returning to the application layer.
+- Register the provider with dependency injection as another `IHotelProvider` implementation.
+- Add provider-specific tests for deterministic behavior, mapping, cancellation policy conversion, total price calculation, and unknown destination handling.
+- Confirm existing API response contracts remain unchanged.
+
+Potential production extensions:
+
+- Replace `InMemoryReservationStore` with durable database persistence.
+- Move the destination catalog to configuration or persistent storage.
+- Add authentication and authorization for reservation operations.
+- Add real provider integrations with resilient HTTP clients, retries, timeouts, and provider health checks.
+- Add pagination, richer filtering, and currency handling if provider result volumes or pricing complexity increase.

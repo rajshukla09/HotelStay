@@ -1,10 +1,12 @@
 # Hotel Stay Availability
 
-Hotel Stay Availability is a .NET 8 case study for searching hotel availability across external providers and making in-memory reservations through ASP.NET Core controllers.
+## Project summary
+
+Hotel Stay Availability is a .NET 8 case study for searching hotel availability, validating travel documents, and creating in-memory reservations. The solution includes an ASP.NET Core backend, a Blazor WebAssembly frontend, and two deterministic stub hotel providers that make the behavior repeatable for testing and review.
 
 ## Architecture
 
-The backend now follows a Clean Architecture layout with domain rules, application use cases, infrastructure implementations, and API hosting concerns split into separate projects.
+The backend follows a concise Clean Architecture structure: domain rules live in the Domain project, application use cases and contracts live in Application, deterministic provider and persistence implementations live in Infrastructure, and HTTP hosting concerns live in Api. The design keeps provider integration behind `IHotelProvider`, so a third provider can be added without changing the API surface.
 
 ## Repository structure
 
@@ -28,43 +30,99 @@ hotel-stay/
 
 - `HotelStay.Domain` contains domain enums and reservation entities. It has no project references.
 - `HotelStay.Application` contains DTOs, CQRS commands, queries, handlers, application interfaces, and operation results. It references `HotelStay.Domain` only.
-- `HotelStay.Infrastructure` contains provider stubs, the in-memory reservation store, document validation, and DI registration. It references `HotelStay.Application` and `HotelStay.Domain`.
-- `HotelStay.Api` contains ASP.NET Core controllers, middleware, Swagger setup, and `Program.cs`. It references `HotelStay.Application` and `HotelStay.Infrastructure` and maps controllers with `app.MapControllers()`.
+- `HotelStay.Infrastructure` contains provider stubs, the in-memory reservation store, document validation, and dependency injection registration. It references `HotelStay.Application` and `HotelStay.Domain`.
+- `HotelStay.Api` contains ASP.NET Core controllers, middleware, Swagger setup, and `Program.cs`. It references `HotelStay.Application` and `HotelStay.Infrastructure`.
+- `HotelStay.Blazor` contains the Blazor WebAssembly user interface.
 - `HotelStay.Tests` references the backend projects as needed for integration and application tests.
 
 ## Prerequisites
 
 - .NET 8 SDK
 
-## Restore and build
+## Local URLs
+
+- API Swagger: <https://localhost:7080/swagger>
+- Blazor UI: <http://localhost:5200>
+
+## Supported destinations
+
+Domestic destinations:
+
+- Sydney
+- Melbourne
+
+International destinations:
+
+- London
+- Paris
+- Tokyo
+
+Unknown destinations return no rooms.
+
+## Run instructions
+
+From a clean clone, run:
 
 ```bash
 dotnet restore HotelStay.sln
 dotnet build HotelStay.sln
-```
-
-## Run the API
-
-```bash
+dotnet test HotelStay.sln
 dotnet run --project src/HotelStay.Api
-```
-
-The API launch profile opens Swagger for the selected API profile. The API also exposes a development health endpoint at `/health` and hotel controller endpoints under `/api/hotels`.
-
-## Run the Blazor WebAssembly app
-
-```bash
 dotnet run --project src/HotelStay.Blazor
 ```
 
-## Run tests
+The API exposes Swagger, a development health endpoint at `/health`, and hotel endpoints under `/api/hotels`.
 
-```bash
-dotnet test HotelStay.sln
+## API examples
+
+Search availability:
+
+```http
+GET /api/hotels/search?destination=Sydney&checkIn=2026-07-08&checkOut=2026-07-10
 ```
+
+Create a reservation:
+
+```http
+POST /api/hotels/reserve
+Content-Type: application/json
+
+{
+  "hotelId": "A-SYD-001",
+  "roomId": "A-SYD-001-STD",
+  "destination": "Sydney",
+  "checkIn": "2026-07-08",
+  "checkOut": "2026-07-10",
+  "guestName": "Alex Guest",
+  "documentType": "NationalId",
+  "documentNumber": "NAT-123456"
+}
+```
+
+Domestic destinations accept National ID. International destinations require Passport. Invalid document and destination mismatches return `422 Unprocessable Entity`.
+
+## Assumptions
+
+- No database; reservations are stored in memory.
+- No authentication.
+- No real provider integrations.
+- Provider stubs are deterministic.
+- Unknown destinations return no rooms.
+- Prices are simple decimal values.
+- The solution is designed so a third provider can be added through `IHotelProvider`.
 
 ## Documentation
 
 - `spec.md` describes the planned problem, contracts, validation, frontend states, testing approach, and provider extensibility.
 - `prompts.md` records AI usage notes for the case study.
-- `reflection.md` captures placeholders for future improvement areas.
+- `reflection.md` captures improvement areas if more time were available.
+
+## Final verification checklist
+
+- API builds and runs.
+- UI builds and runs.
+- Tests pass.
+- Search flow works.
+- Reservation flow works.
+- `422` document validation works.
+- Reservation lookup works.
