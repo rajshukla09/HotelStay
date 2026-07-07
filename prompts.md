@@ -2,43 +2,155 @@
 
 ## Overview
 
-AI assistance was used throughout the software development lifecycle for analysis, architecture, design, implementation, testing, and documentation. The prompts focused on turning the case study requirements into a small, reviewable .NET 8 solution with a clear backend, frontend, validation flow, and documentation. The implementation, verification steps, and design decisions were reviewed manually before submission.
+AI assistance was used throughout the software development lifecycle for analysis, architecture, design, implementation, testing, and documentation. The objective was to translate the case study requirements into a clean, maintainable .NET 8 solution while keeping the implementation appropriate for the scope of the assessment.
+
+AI was used as a productivity and design aid. All generated code, architectural decisions, validation logic, tests, and documentation were manually reviewed, refined, tested, and validated before submission.
+
+---
 
 ## Analysis
 
-AI was used to help interpret the Hotel Stay Availability case study, identify the main functional requirements, and organize the work into manageable implementation steps. The analysis prompts focused on search availability, supported destinations, reservation creation, reservation lookup, document rules for domestic and international travel, expected HTTP outcomes, and how to keep the scope appropriate for a case study.
+AI was used to:
+
+- Break the case study into manageable implementation tasks.
+- Identify functional and non-functional requirements.
+- Define the API surface.
+- Plan the overall implementation sequence.
+- Identify assumptions where the requirements intentionally left implementation details open.
+
+The analysis focused on:
+
+- Hotel search
+- Provider normalization
+- Reservation flow
+- Reservation lookup
+- Document validation
+- Validation scenarios
+- Testing strategy
+- Documentation requirements
+
+---
 
 ## Architecture
 
-Architecture prompts were used to plan a Clean Architecture structure with separate Domain, Application, Infrastructure, API, Blazor, and test projects. The design discussion included using ASP.NET Core Controllers instead of Minimal APIs for better organization, a lightweight CQRS style for separating search queries from reservation commands, SOLID principles, dependency injection, provider abstraction through `IHotelProvider`, an in-memory reservation store, and a shared destination catalog used by both providers and validation.
+AI was used to explore and refine several architectural approaches before implementation.
+
+The final solution adopted:
+
+- Clean Architecture
+- ASP.NET Core Controllers
+- Lightweight CQRS
+- Dependency Injection
+- SOLID principles
+- Provider abstraction through `IHotelProvider`
+- Shared destination catalog
+- In-memory reservation store
+
+The solution was intentionally structured so additional hotel providers can be introduced with minimal changes to the core application.
+
+---
 
 ## Backend Implementation
 
-Backend implementation prompts supported the hotel search flow, provider result normalization, reservation creation, reservation lookup, document validation, and consistent error handling. AI was also used to assist with Swagger setup and explicit application-layer validation rules so the API behavior was easier to exercise and validate during review.
+AI assisted with:
+
+- Search endpoint implementation
+- Provider abstraction
+- Provider response normalization
+- Reservation workflow
+- Reservation lookup
+- Request validation
+- Document validation
+- Global exception handling
+- Swagger/OpenAPI configuration
+- Dependency Injection
+- In-memory reservation storage
+
+The generated implementation was reviewed and refined to ensure it aligned with the case study requirements.
+
+---
 
 ## Blazor UI
 
-Blazor UI prompts supported building the main search page, displaying hotel results, collecting reservation details, showing a confirmation screen, and keeping API calls behind a client abstraction. The UI prompts also covered client-side validation and using configuration for the API base endpoint so the frontend can target the local API cleanly.
+AI was used to assist with:
+
+- Hotel search page
+- Search results
+- Reservation form
+- Reservation confirmation
+- Reservation lookup
+- Client-side validation
+- API client abstraction
+- Configuration-driven API endpoint
+- User experience improvements
+
+The UI was then manually tested end-to-end against the backend APIs.
+
+---
 
 ## Testing
 
-Testing prompts were used to identify useful unit and integration test coverage, including validation scenarios, edge cases, Swagger-based API testing, and end-to-end checks of the search and reservation flows. Particular attention was given to document mismatch cases, deterministic provider behavior, unknown destinations returning no rooms, and reservation lookup behavior.
+AI assisted with identifying meaningful test scenarios including:
+
+- Search validation
+- Date validation
+- Provider normalization
+- Total price calculation
+- Room filtering
+- Reservation creation
+- Reservation lookup
+- Document validation
+- Unknown destination behavior
+- End-to-end Swagger verification
+
+Generated tests and scenarios were manually reviewed and executed.
+
+---
 
 ## Documentation
 
-Documentation prompts were used to create and refine `README.md`, `spec.md`, `reflection.md`, and `prompts.md`. The documentation work focused on making the project easy to review by capturing requirements, run instructions, architecture decisions, assumptions, API examples, improvement areas, and a transparent summary of AI usage.
+AI was used to draft and refine:
+
+- README.md
+- spec.md
+- prompts.md
+- reflection.md
+
+The documentation was then updated to accurately reflect the final implementation and project structure.
+
+---
+
+## Representative Prompts
+
+Examples of significant prompts used during development include:
+
+- Design a Clean Architecture solution for the Hotel Stay Availability case study using .NET 8, ASP.NET Core Controllers, Blazor WebAssembly, and lightweight CQRS.
+- Design an extensible `IHotelProvider` abstraction with deterministic stub implementations and normalized provider responses.
+- Implement document validation for domestic and international destinations with appropriate HTTP status codes.
+- Build a Blazor WebAssembly user interface for hotel search, reservation, confirmation, and reservation lookup.
+- Generate meaningful unit tests covering validation, provider behavior, reservation flow, and lookup scenarios.
+- Review the implementation against the original case study requirements and identify any functional or documentation gaps before submission.
+
+---
 
 ## Key Design Decisions
 
-- Controllers were chosen instead of Minimal APIs for maintainability and clearer endpoint organization.
-- Clean Architecture was used to separate domain rules, application use cases, infrastructure implementations, API hosting, and UI concerns.
-- Lightweight CQRS was used instead of introducing MediatR, keeping reads and writes separate without adding unnecessary dependencies.
-- A shared destination catalog was reused by providers and validation to keep supported destination behavior consistent.
-- Deterministic provider stubs were used so search results are repeatable and tests are easier to reason about.
-- An in-memory reservation store was used because durable persistence was outside the case study scope.
-- Unknown destinations return no rooms rather than throwing an error, which keeps search behavior simple and predictable.
-- Client-side validation improves the user experience, while server-side validation enforces the business rules for every API caller.
+The following architectural decisions were made during implementation:
 
-## AI Assisted But Human Reviewed
+- ASP.NET Core Controllers were chosen instead of Minimal APIs to provide clearer endpoint organization and maintainability.
+- Clean Architecture was adopted to separate domain, application, infrastructure, API, UI, and testing concerns.
+- Lightweight CQRS was used to separate commands and queries without introducing unnecessary dependencies.
+- `IHotelProvider` abstracts hotel providers so additional providers can be added without changing the core search flow.
+- A shared destination catalog is reused by both provider implementations and document validation to ensure consistent behavior.
+- Provider implementations are deterministic, making testing and demonstrations repeatable.
+- Reservations are stored in memory because persistence was outside the scope of the case study.
+- Unknown destinations return an empty search result rather than an error, providing predictable search behavior.
+- Client-side validation improves the user experience while server-side validation guarantees business rules are enforced for every API consumer.
 
-AI was used to accelerate analysis, implementation, testing, and documentation. All generated code, architecture, and design decisions were manually reviewed, refined, tested, and validated against the case study requirements before submission.
+---
+
+## AI Assisted, Human Reviewed
+
+AI was used to accelerate analysis, implementation, testing, and documentation throughout the project.
+
+All generated code, architectural decisions, documentation, and tests were manually reviewed, refined, executed, and validated against the case study requirements before submission. AI was used as a development assistant rather than a replacement for engineering judgement.
