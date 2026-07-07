@@ -35,4 +35,6 @@ public sealed record ReservationRequest(
 
 public sealed record ReservationResponse(
     string Reference,
-    string Message);
+    string Message,
+    decimal TotalPrice,
+    CancellationPolicy CancellationPolicy);
