@@ -49,7 +49,7 @@ dotnet build HotelStay.sln
 dotnet run --project src/HotelStay.Api
 ```
 
-The API exposes a development health endpoint at `/health` and hotel controller endpoints under `/api/hotels`.
+The API launch profile opens Swagger at `http://localhost:5080/swagger` for the `http` profile or `https://localhost:7080/swagger` for the `https` profile. The API also exposes a development health endpoint at `/health` and hotel controller endpoints under `/api/hotels`.
 
 ## Run the Blazor WebAssembly app
 
