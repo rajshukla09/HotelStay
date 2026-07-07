@@ -1,4 +1,4 @@
-namespace HotelStay.Blazor.Configuration;
+namespace HotelStay.Blazor.Models;
 
 public sealed class ApiSettings
 {

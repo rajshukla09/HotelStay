@@ -1,0 +1,426 @@
+@page "/hotels"
+@inject IHotelApiService HotelApiService
+
+<section class="page-header">
+    <p class="eyebrow">Guest booking flow</p>
+    <h1>Hotel Search</h1>
+    <p>Search availability, compare normalized provider results, reserve a room, and retrieve a reservation.</p>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-error">@errorMessage</div>
+}
+
+<section class="content-card">
+    <h2>Search availability</h2>
+    <p class="helper-text">Domestic: Sydney, Melbourne · International: London, Paris, Tokyo</p>
+
+    <EditForm Model="searchForm" OnValidSubmit="SearchAsync">
+        <div class="form-grid">
+            <label>
+                Destination
+                <InputText class="form-control" @bind-Value="searchForm.Destination" placeholder="Paris" />
+            </label>
+            <label>
+                Check-in date
+                <InputText class="form-control" type="date" @bind-Value="searchForm.CheckIn" />
+            </label>
+            <label>
+                Check-out date
+                <InputText class="form-control" type="date" @bind-Value="searchForm.CheckOut" />
+            </label>
+            <label>
+                Room type
+                <InputSelect class="form-control" @bind-Value="searchForm.RoomType">
+                    <option value="">Any</option>
+                    <option value="Standard">Standard</option>
+                    <option value="Deluxe">Deluxe</option>
+                    <option value="Suite">Suite</option>
+                </InputSelect>
+            </label>
+        </div>
+
+        @if (searchValidationErrors.Count > 0)
+        {
+            <ul class="validation-list">
+                @foreach (var validationError in searchValidationErrors)
+                {
+                    <li>@validationError</li>
+                }
+            </ul>
+        }
+
+        <button class="btn btn-primary" type="submit" disabled="@isSearching">
+            @(isSearching ? "Searching..." : "Search Hotels")
+        </button>
+    </EditForm>
+</section>
+
+<section class="content-card lookup-card">
+    <h2>Reservation lookup</h2>
+    <div class="lookup-row">
+        <InputText class="form-control" @bind-Value="lookupReference" placeholder="HST-20260707-ABC123" />
+        <button class="btn btn-secondary" type="button" @onclick="LookupReservationAsync" disabled="@isLookingUp">View Reservation</button>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(lookupMessage))
+    {
+        <p class="lookup-message">@lookupMessage</p>
+    }
+    @if (lookupReservation is not null)
+    {
+        <ReservationDetailsCard Reservation="lookupReservation" />
+    }
+</section>
+
+@if (hasSearched)
+{
+    <section class="content-card">
+        <div class="section-heading">
+            <div>
+                <h2>Results</h2>
+                <p>@results.Count room option(s) found.</p>
+            </div>
+            <label class="sort-control">
+                Sort by total price
+                <InputSelect class="form-control" @bind-Value="sortDescending">
+                    <option value="false">Low to high</option>
+                    <option value="true">High to low</option>
+                </InputSelect>
+            </label>
+        </div>
+
+        @if (isSearching)
+        {
+            <div class="empty-state">Loading hotel availability...</div>
+        }
+        else if (results.Count == 0)
+        {
+            <div class="empty-state">No availability found. Try another destination or date range.</div>
+        }
+        else
+        {
+            <div class="results-grid">
+                @foreach (var room in SortedResults)
+                {
+                    <article class="hotel-card">
+                        <div class="card-header-row">
+                            <span class="provider-badge">@room.Provider</span>
+                            @if (room.StarRating is not null)
+                            {
+                                <span class="stars">@Stars(room.StarRating.Value)</span>
+                            }
+                        </div>
+                        <h3>@room.HotelName</h3>
+                        <dl class="details-grid">
+                            <div><dt>Room type</dt><dd>@room.RoomType</dd></div>
+                            <div><dt>Per night</dt><dd>@FormatCurrency(room.PerNightRate)</dd></div>
+                            <div><dt>Total</dt><dd class="price">@FormatCurrency(room.TotalPrice)</dd></div>
+                            <div><dt>Cancellation</dt><dd>@FormatEnum(room.CancellationPolicy)</dd></div>
+                        </dl>
+                        @if (room.Amenities?.Count > 0)
+                        {
+                            <div class="amenities">
+                                @foreach (var amenity in room.Amenities)
+                                {
+                                    <span>@amenity</span>
+                                }
+                            </div>
+                        }
+                        <button class="btn btn-primary" type="button" @onclick="() => SelectRoom(room)">Reserve</button>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+}
+
+@if (selectedRoom is not null && confirmation is null)
+{
+    <section class="content-card reservation-panel">
+        <h2>Reserve selected room</h2>
+        <div class="selected-summary">
+            <strong>@selectedRoom.HotelName</strong>
+            <span>@selectedRoom.Provider · @selectedRoom.RoomType · @FormatCurrency(selectedRoom.TotalPrice)</span>
+        </div>
+        <p class="helper-text">International destination requires Passport. Domestic destination accepts NationalId.</p>
+
+        <EditForm Model="reservationForm" OnValidSubmit="ReserveAsync">
+            <div class="form-grid">
+                <label>
+                    Guest name
+                    <InputText class="form-control" @bind-Value="reservationForm.GuestName" />
+                </label>
+                <label>
+                    Document type
+                    <InputSelect class="form-control" @bind-Value="reservationForm.DocumentType">
+                        <option value="">Select document</option>
+                        <option value="Passport">Passport</option>
+                        <option value="NationalId">NationalId</option>
+                    </InputSelect>
+                </label>
+                <label>
+                    Document number
+                    <InputText class="form-control" @bind-Value="reservationForm.DocumentNumber" />
+                </label>
+            </div>
+
+            @if (reservationValidationErrors.Count > 0)
+            {
+                <ul class="validation-list">
+                    @foreach (var validationError in reservationValidationErrors)
+                    {
+                        <li>@validationError</li>
+                    }
+                </ul>
+            }
+
+            <button class="btn btn-primary" type="submit" disabled="@isReserving">@(isReserving ? "Reserving..." : "Confirm Reservation")</button>
+        </EditForm>
+    </section>
+}
+
+@if (confirmation is not null && selectedRoom is not null)
+{
+    <section class="content-card confirmation-card">
+        <p class="eyebrow">Reservation confirmed</p>
+        <h2>Reference @confirmation.Reference</h2>
+        <dl class="details-grid">
+            <div><dt>Provider</dt><dd>@selectedRoom.Provider</dd></div>
+            <div><dt>Hotel</dt><dd>@selectedRoom.HotelName</dd></div>
+            <div><dt>Room type</dt><dd>@selectedRoom.RoomType</dd></div>
+            <div><dt>Total price</dt><dd>@FormatCurrency(selectedRoom.TotalPrice)</dd></div>
+            <div><dt>Cancellation</dt><dd>@FormatEnum(selectedRoom.CancellationPolicy)</dd></div>
+            <div><dt>Guest</dt><dd>@reservationForm.GuestName</dd></div>
+            <div><dt>Check-in</dt><dd>@confirmedCheckIn?.ToString("yyyy-MM-dd")</dd></div>
+            <div><dt>Check-out</dt><dd>@confirmedCheckOut?.ToString("yyyy-MM-dd")</dd></div>
+        </dl>
+        <div class="button-row">
+            <button class="btn btn-primary" type="button" @onclick="NewSearch">New Search</button>
+            <button class="btn btn-secondary" type="button" @onclick="() => LoadConfirmedReservationAsync(confirmation.Reference)">View Reservation</button>
+        </div>
+    </section>
+}
+
+@code {
+    private readonly SearchFormModel searchForm = new();
+    private readonly ReservationFormModel reservationForm = new();
+    private readonly List<string> searchValidationErrors = [];
+    private readonly List<string> reservationValidationErrors = [];
+    private IReadOnlyList<HotelRoomResult> results = [];
+    private HotelRoomResult? selectedRoom;
+    private ReservationResponse? confirmation;
+    private ReservationDetails? lookupReservation;
+    private DateOnly? activeCheckIn;
+    private DateOnly? activeCheckOut;
+    private DateOnly? confirmedCheckIn;
+    private DateOnly? confirmedCheckOut;
+    private string? errorMessage;
+    private string? lookupMessage;
+    private string lookupReference = string.Empty;
+    private bool hasSearched;
+    private bool isSearching;
+    private bool isReserving;
+    private bool isLookingUp;
+    private bool sortDescending;
+
+    private IEnumerable<HotelRoomResult> SortedResults => sortDescending
+        ? results.OrderByDescending(room => room.TotalPrice)
+        : results.OrderBy(room => room.TotalPrice);
+
+    private async Task SearchAsync()
+    {
+        errorMessage = null;
+        selectedRoom = null;
+        confirmation = null;
+        results = [];
+        hasSearched = true;
+
+        if (!TryBuildSearchRequest(out var request))
+        {
+            return;
+        }
+
+        isSearching = true;
+        var response = await HotelApiService.SearchHotelsAsync(request!);
+        isSearching = false;
+
+        if (response.IsSuccess)
+        {
+            activeCheckIn = request!.CheckIn;
+            activeCheckOut = request.CheckOut;
+            results = response.Data ?? [];
+            return;
+        }
+
+        errorMessage = response.ErrorMessage;
+    }
+
+    private void SelectRoom(HotelRoomResult room)
+    {
+        selectedRoom = room;
+        confirmation = null;
+        reservationValidationErrors.Clear();
+        errorMessage = null;
+    }
+
+    private async Task ReserveAsync()
+    {
+        if (selectedRoom is null || activeCheckIn is null || activeCheckOut is null)
+        {
+            errorMessage = "Select a room from current search results before reserving.";
+            return;
+        }
+
+        if (!TryBuildReservationRequest(selectedRoom, activeCheckIn.Value, activeCheckOut.Value, out var request))
+        {
+            return;
+        }
+
+        isReserving = true;
+        errorMessage = null;
+        var response = await HotelApiService.ReserveHotelAsync(request!);
+        isReserving = false;
+
+        if (response.IsSuccess)
+        {
+            confirmation = response.Data;
+            confirmedCheckIn = activeCheckIn;
+            confirmedCheckOut = activeCheckOut;
+            lookupReference = confirmation?.Reference ?? string.Empty;
+            return;
+        }
+
+        errorMessage = response.ErrorMessage;
+    }
+
+    private async Task LookupReservationAsync()
+    {
+        lookupReservation = null;
+        lookupMessage = null;
+
+        if (string.IsNullOrWhiteSpace(lookupReference))
+        {
+            lookupMessage = "Enter a reservation reference.";
+            return;
+        }
+
+        await LoadConfirmedReservationAsync(lookupReference.Trim());
+    }
+
+    private async Task LoadConfirmedReservationAsync(string reference)
+    {
+        isLookingUp = true;
+        lookupMessage = null;
+        lookupReservation = null;
+        var response = await HotelApiService.GetReservationAsync(reference);
+        isLookingUp = false;
+
+        if (response.IsSuccess)
+        {
+            lookupReservation = response.Data;
+            lookupReference = reference;
+            lookupMessage = null;
+            return;
+        }
+
+        lookupMessage = response.StatusCode == 404
+            ? "No reservation was found for that reference. Check the code and try again."
+            : response.ErrorMessage;
+    }
+
+    private bool TryBuildSearchRequest(out SearchHotelsRequest? request)
+    {
+        request = null;
+        searchValidationErrors.Clear();
+
+        if (string.IsNullOrWhiteSpace(searchForm.Destination))
+        {
+            searchValidationErrors.Add("Destination is required.");
+        }
+
+        if (!DateOnly.TryParse(searchForm.CheckIn, out var checkIn))
+        {
+            searchValidationErrors.Add("Check-in is required.");
+        }
+
+        if (!DateOnly.TryParse(searchForm.CheckOut, out var checkOut))
+        {
+            searchValidationErrors.Add("Check-out is required.");
+        }
+
+        if (DateOnly.TryParse(searchForm.CheckIn, out checkIn) && DateOnly.TryParse(searchForm.CheckOut, out checkOut) && checkOut <= checkIn)
+        {
+            searchValidationErrors.Add("Check-out must be after check-in.");
+        }
+
+        if (searchValidationErrors.Count > 0)
+        {
+            return false;
+        }
+
+        var roomType = Enum.TryParse<RoomType>(searchForm.RoomType, out var parsedRoomType) ? parsedRoomType : (RoomType?)null;
+        request = new SearchHotelsRequest(searchForm.Destination.Trim(), checkIn, checkOut, roomType);
+        return true;
+    }
+
+    private bool TryBuildReservationRequest(HotelRoomResult room, DateOnly checkIn, DateOnly checkOut, out ReserveHotelRequest? request)
+    {
+        request = null;
+        reservationValidationErrors.Clear();
+
+        if (string.IsNullOrWhiteSpace(reservationForm.GuestName))
+        {
+            reservationValidationErrors.Add("Guest name is required.");
+        }
+
+        if (!Enum.TryParse<DocumentType>(reservationForm.DocumentType, out var documentType))
+        {
+            reservationValidationErrors.Add("Document type is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(reservationForm.DocumentNumber))
+        {
+            reservationValidationErrors.Add("Document number is required.");
+        }
+
+        if (reservationValidationErrors.Count > 0)
+        {
+            return false;
+        }
+
+        request = new ReserveHotelRequest(room, checkIn, checkOut, reservationForm.GuestName.Trim(), documentType, reservationForm.DocumentNumber.Trim());
+        return true;
+    }
+
+    private void NewSearch()
+    {
+        selectedRoom = null;
+        confirmation = null;
+        reservationForm.GuestName = string.Empty;
+        reservationForm.DocumentType = string.Empty;
+        reservationForm.DocumentNumber = string.Empty;
+        errorMessage = null;
+    }
+
+    private static string FormatCurrency(decimal amount) => amount.ToString("C");
+
+    private static string Stars(int count) => new('★', count);
+
+    private static string FormatEnum<T>(T value) where T : struct, Enum => string.Concat(value.ToString().Select((character, index) => index > 0 && char.IsUpper(character) ? $" {character}" : character.ToString()));
+
+    private sealed class SearchFormModel
+    {
+        public string Destination { get; set; } = string.Empty;
+        public string CheckIn { get; set; } = string.Empty;
+        public string CheckOut { get; set; } = string.Empty;
+        public string RoomType { get; set; } = string.Empty;
+    }
+
+    private sealed class ReservationFormModel
+    {
+        public string GuestName { get; set; } = string.Empty;
+        public string DocumentType { get; set; } = string.Empty;
+        public string DocumentNumber { get; set; } = string.Empty;
+    }
+}

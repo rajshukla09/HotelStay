@@ -1,4 +1,4 @@
-namespace HotelStay.Blazor.Services;
+namespace HotelStay.Blazor.Models;
 
 public sealed record ApiResult<T>(
     bool IsSuccess,

@@ -1,0 +1,18 @@
+<div class="reservation-details-card">
+    <h3>Reservation @Reservation.Reference</h3>
+    <dl class="details-grid">
+        <div><dt>Provider</dt><dd>@Reservation.Provider</dd></div>
+        <div><dt>Destination</dt><dd>@Reservation.Destination (@Reservation.DestinationCategory)</dd></div>
+        <div><dt>Room type</dt><dd>@Reservation.RoomType</dd></div>
+        <div><dt>Total price</dt><dd>@Reservation.TotalPrice.ToString("C")</dd></div>
+        <div><dt>Guest</dt><dd>@Reservation.GuestName</dd></div>
+        <div><dt>Document</dt><dd>@Reservation.DocumentType</dd></div>
+        <div><dt>Check-in</dt><dd>@Reservation.CheckIn.ToString("yyyy-MM-dd")</dd></div>
+        <div><dt>Check-out</dt><dd>@Reservation.CheckOut.ToString("yyyy-MM-dd")</dd></div>
+    </dl>
+</div>
+
+@code {
+    [Parameter]
+    public ReservationDetails Reservation { get; set; } = default!;
+}
