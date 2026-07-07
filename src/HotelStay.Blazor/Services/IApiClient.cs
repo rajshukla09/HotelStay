@@ -1,3 +1,5 @@
+using HotelStay.Blazor.Models;
+
 namespace HotelStay.Blazor.Services;
 
 public interface IApiClient
