@@ -16,7 +16,7 @@ public sealed class BudgetNestsProvider : IHotelProvider
         {
             new BudgetNestsRoom("bn-standard", $"{request.Destination} Budget Nest", 0, 95m, 1, true),
             new BudgetNestsRoom("bn-deluxe", $"{request.Destination} City Nest", 1, 155m, 2, IsAvailable(request.Destination, RoomType.Deluxe)),
-            new BudgetNestsRoom("bn-suite", $"{request.Destination} Family Nest", 2, 240m, 1, false)
+            new BudgetNestsRoom("bn-suite", $"{request.Destination} Family Nest", 2, 240m, 1, IsAvailable(request.Destination, RoomType.Suite))
         };
 
         var results = responses
@@ -61,8 +61,15 @@ public sealed class BudgetNestsProvider : IHotelProvider
         _ => CancellationPolicy.FreeCancellation48Hours
     };
 
-    private static bool IsAvailable(string destination, RoomType roomType) =>
-        Math.Abs(HashCode.Combine(destination.ToUpperInvariant(), roomType)) % 2 == 0;
+    private static bool IsAvailable(string destination, RoomType roomType)
+    {
+        if (roomType == RoomType.Suite && destination.Equals("Paris", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return true;
+    }
 
     private sealed record BudgetNestsRoom(
         string room_id,
