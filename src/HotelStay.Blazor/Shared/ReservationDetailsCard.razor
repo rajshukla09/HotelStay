@@ -5,7 +5,7 @@
         <div><dt>Destination</dt><dd>@Reservation.Destination (@Reservation.DestinationCategory)</dd></div>
         <div><dt>Room type</dt><dd>@Reservation.RoomType</dd></div>
         <div><dt>Total price</dt><dd>@Reservation.TotalPrice.ToString("C")</dd></div>
-        <div><dt>Cancellation</dt><dd>@Reservation.CancellationPolicy</dd></div>
+        <div><dt>Cancellation</dt><dd>@FormatCancellationPolicy(Reservation.CancellationPolicy)</dd></div>
         <div><dt>Guest</dt><dd>@Reservation.GuestName</dd></div>
         <div><dt>Document</dt><dd>@Reservation.DocumentType</dd></div>
         <div><dt>Check-in</dt><dd>@Reservation.CheckIn.ToString("yyyy-MM-dd")</dd></div>
@@ -16,4 +16,12 @@
 @code {
     [Parameter]
     public ReservationDetails Reservation { get; set; } = default!;
+
+    private static string FormatCancellationPolicy(CancellationPolicy cancellationPolicy) => cancellationPolicy switch
+    {
+        CancellationPolicy.FreeCancellation48Hours => "Free cancellation up to 48 hours before check-in",
+        CancellationPolicy.Flexible24Hours => "Flexible up to 24 hours before check-in",
+        CancellationPolicy.NonRefundable => "Non-refundable",
+        _ => cancellationPolicy.ToString()
+    };
 }
