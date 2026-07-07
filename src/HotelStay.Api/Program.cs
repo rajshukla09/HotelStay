@@ -3,8 +3,21 @@ using HotelStay.Application.Commands;
 using HotelStay.Application.Queries;
 using HotelStay.Infrastructure.DependencyInjection;
 
-var builder = WebApplication.CreateBuilder(args);
+const string BlazorClientCorsPolicy = "BlazorClient";
 
+var builder = WebApplication.CreateBuilder(args);
+var blazorClientOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(BlazorClientCorsPolicy, policy =>
+    {
+        policy
+            .WithOrigins(blazorClientOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -24,6 +37,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors(BlazorClientCorsPolicy);
 
 app.MapControllers();
 
