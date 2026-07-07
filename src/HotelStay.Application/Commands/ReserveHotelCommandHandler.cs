@@ -49,7 +49,7 @@ public sealed class ReserveHotelCommandHandler
             DateTimeOffset.UtcNow);
 
         await reservationStore.SaveAsync(reservation, cancellationToken);
-        return OperationResult<ReservationResponse>.Success(new ReservationResponse(reference, "Reservation confirmed."));
+        return OperationResult<ReservationResponse>.Success(new ReservationResponse(reference, "Reservation confirmed.", request.TotalPrice, request.CancellationPolicy));
     }
 
     private static string GenerateReference(ReservationRequest request)

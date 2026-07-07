@@ -46,6 +46,7 @@ public sealed class SearchHotelsQueryHandler
 
         var results = providerResults
             .SelectMany(result => result)
+            .Where(room => request.RoomType is null || room.RoomType == request.RoomType)
             .OrderBy(room => room.TotalPrice)
             .ToArray();
 
