@@ -294,6 +294,58 @@ public sealed class HotelStayBusinessTests
         Assert.Equal("International destinations require a Passport document.", result.ErrorMessage);
     }
 
+
+    [Theory]
+    [InlineData("", "PremierStays", "Jordan Guest", "DOC123", 200, 600, "RoomId is required.")]
+    [InlineData("room-1", "", "Jordan Guest", "DOC123", 200, 600, "Provider is required.")]
+    [InlineData("room-1", "PremierStays", "", "DOC123", 200, 600, "GuestName is required.")]
+    [InlineData("room-1", "PremierStays", "Jordan Guest", "", 200, 600, "DocumentNumber is required.")]
+    [InlineData("room-1", "PremierStays", "Jordan Guest", "DOC123", 0, 600, "Reservation pricing must be greater than zero.")]
+    [InlineData("room-1", "PremierStays", "Jordan Guest", "DOC123", 200, 0, "Reservation pricing must be greater than zero.")]
+    public async Task ReservationHandler_Returns400_ForInvalidReservationFields(
+        string roomId,
+        string provider,
+        string guestName,
+        string documentNumber,
+        int perNightRate,
+        int totalPrice,
+        string expectedMessage)
+    {
+        // Arrange
+        var store = new InMemoryReservationStore();
+        var handler = new ReserveHotelCommandHandler(new DocumentValidationService(), store);
+        var request = new ReservationRequest(
+            roomId, provider, "Sydney", new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 4),
+            RoomType.Deluxe, perNightRate, totalPrice, guestName, DocumentType.NationalId, documentNumber);
+
+        // Act
+        var result = await handler.HandleAsync(new ReserveHotelCommand(request), CancellationToken.None);
+
+        // Assert
+        Assert.False(result.Succeeded);
+        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(expectedMessage, result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task ReservationHandler_Returns400_WhenCheckOutIsNotAfterCheckIn()
+    {
+        // Arrange
+        var store = new InMemoryReservationStore();
+        var handler = new ReserveHotelCommandHandler(new DocumentValidationService(), store);
+        var request = new ReservationRequest(
+            "room-1", "PremierStays", "Sydney", new DateOnly(2026, 11, 4), new DateOnly(2026, 11, 4),
+            RoomType.Deluxe, 200m, 600m, "Jordan Guest", DocumentType.NationalId, "DOC123");
+
+        // Act
+        var result = await handler.HandleAsync(new ReserveHotelCommand(request), CancellationToken.None);
+
+        // Assert
+        Assert.False(result.Succeeded);
+        Assert.Equal(400, result.StatusCode);
+        Assert.Equal("Check-out date must be after check-in date.", result.ErrorMessage);
+    }
+
     [Fact]
     public async Task ReservationLookup_ReturnsReservationDetails_ForExistingReference_AndNotFoundForMissingReference()
     {

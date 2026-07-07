@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using HotelStay.Application.Interfaces;
 using HotelStay.Application.Models;
 using HotelStay.Application.Queries;
@@ -12,7 +14,16 @@ namespace HotelStay.Tests;
 
 public sealed class HotelSearchTests : IClassFixture<WebApplicationFactory<Program>>
 {
+    private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
+
     private readonly WebApplicationFactory<Program> factory;
+
+    private static JsonSerializerOptions CreateJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new JsonStringEnumConverter());
+        return options;
+    }
 
     public HotelSearchTests(WebApplicationFactory<Program> factory)
     {
@@ -27,7 +38,7 @@ public sealed class HotelSearchTests : IClassFixture<WebApplicationFactory<Progr
         var response = await client.GetAsync("/api/hotels/search?destination=Paris&checkIn=2026-09-01&checkOut=2026-09-04");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var results = await response.Content.ReadFromJsonAsync<IReadOnlyList<HotelRoomResult>>();
+        var results = await response.Content.ReadFromJsonAsync<IReadOnlyList<HotelRoomResult>>(JsonOptions);
         Assert.NotNull(results);
         Assert.NotEmpty(results);
         Assert.Equal(results!.OrderBy(result => result.TotalPrice), results);
@@ -48,7 +59,7 @@ public sealed class HotelSearchTests : IClassFixture<WebApplicationFactory<Progr
         var response = await client.GetAsync("/api/hotels/search?destination=Paris&checkIn=2026-09-01&checkOut=2026-09-04&roomType=Deluxe");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var results = await response.Content.ReadFromJsonAsync<IReadOnlyList<HotelRoomResult>>();
+        var results = await response.Content.ReadFromJsonAsync<IReadOnlyList<HotelRoomResult>>(JsonOptions);
         Assert.NotNull(results);
         Assert.NotEmpty(results);
         Assert.All(results!, result => Assert.Equal(RoomType.Deluxe, result.RoomType));
@@ -62,7 +73,7 @@ public sealed class HotelSearchTests : IClassFixture<WebApplicationFactory<Progr
         var response = await client.GetAsync("/api/hotels/search?destination=Rome&checkIn=2026-09-01&checkOut=2026-09-04");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var results = await response.Content.ReadFromJsonAsync<IReadOnlyList<HotelRoomResult>>();
+        var results = await response.Content.ReadFromJsonAsync<IReadOnlyList<HotelRoomResult>>(JsonOptions);
         Assert.NotNull(results);
         Assert.Empty(results!);
     }
@@ -136,13 +147,13 @@ public sealed class HotelSearchTests : IClassFixture<WebApplicationFactory<Progr
 
         var reserveResponse = await client.PostAsJsonAsync("/api/hotels/reserve", request);
         Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
-        var confirmation = await reserveResponse.Content.ReadFromJsonAsync<ReservationResponse>();
+        var confirmation = await reserveResponse.Content.ReadFromJsonAsync<ReservationResponse>(JsonOptions);
         Assert.NotNull(confirmation);
 
         var lookupResponse = await client.GetAsync($"/api/hotels/reservation/{confirmation!.Reference}");
 
         Assert.Equal(HttpStatusCode.OK, lookupResponse.StatusCode);
-        var details = await lookupResponse.Content.ReadFromJsonAsync<ReservationDetails>();
+        var details = await lookupResponse.Content.ReadFromJsonAsync<ReservationDetails>(JsonOptions);
         Assert.NotNull(details);
         Assert.Equal(request.CancellationPolicy, details!.CancellationPolicy);
     }

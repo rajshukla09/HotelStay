@@ -28,5 +28,6 @@ public sealed record ReserveHotelRequest(
         Room.TotalPrice,
         GuestName,
         DocumentType,
-        DocumentNumber);
+        DocumentNumber,
+        Room.CancellationPolicy);
 }

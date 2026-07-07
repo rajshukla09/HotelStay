@@ -1,4 +1,6 @@
+using System.Text.Json.Serialization;
 using HotelStay.Api.Middleware;
+using HotelStay.Api.Swagger;
 using HotelStay.Application.Commands;
 using HotelStay.Application.Queries;
 using HotelStay.Infrastructure.DependencyInjection;
@@ -18,9 +20,13 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod();
     });
 });
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SchemaFilter<HotelStaySchemaExampleFilter>();
+});
 builder.Services.AddHotelStayInfrastructure();
 builder.Services.AddScoped<SearchHotelsQueryHandler>();
 builder.Services.AddScoped<GetReservationByReferenceQueryHandler>();
