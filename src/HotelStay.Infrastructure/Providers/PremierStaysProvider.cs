@@ -1,5 +1,6 @@
 using HotelStay.Application.Interfaces;
 using HotelStay.Application.Models;
+using HotelStay.Domain.Destinations;
 using HotelStay.Domain.Enums;
 
 namespace HotelStay.Infrastructure.Providers;
@@ -11,6 +12,11 @@ public sealed class PremierStaysProvider : IHotelProvider
     public Task<IReadOnlyCollection<HotelRoomResult>> SearchAsync(HotelSearchRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (!DestinationCatalog.IsKnownDestination(request.Destination))
+        {
+            return Task.FromResult<IReadOnlyCollection<HotelRoomResult>>([]);
+        }
 
         var responses = new[]
         {
