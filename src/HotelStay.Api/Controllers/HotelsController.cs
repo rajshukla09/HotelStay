@@ -49,9 +49,14 @@ public sealed class HotelsController : ControllerBase
     [ProducesResponseType(ApplicationStatusCodes.Status400BadRequest)]
     [ProducesResponseType(ApplicationStatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<ReservationResponse>> ReserveAsync(
-        [FromBody] ReservationRequest request,
+        [FromBody] ReservationRequest? request,
         CancellationToken cancellationToken)
     {
+        if (request is null)
+        {
+            return BadRequest(new { error = "Error", message = "Reservation request body is required." });
+        }
+
         var result = await reserveHotelCommandHandler.HandleAsync(new ReserveHotelCommand(request), cancellationToken);
         return ToActionResult(result);
     }

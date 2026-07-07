@@ -103,7 +103,7 @@ Content-Type: application/json
 }
 ```
 
-Domestic destinations accept `NationalId` or `Passport`. International destinations require `Passport`. Invalid document and unsupported destination mismatches return `422 Unprocessable Entity`.
+Domestic destinations accept `NationalId` or `Passport`. International destinations require `Passport`. Missing reservation bodies or required fields return `400 Bad Request`; invalid document and unsupported destination mismatches return `422 Unprocessable Entity`.
 
 ## Assumptions
 

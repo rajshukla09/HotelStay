@@ -78,6 +78,20 @@ public sealed class HotelSearchTests : IClassFixture<WebApplicationFactory<Progr
         Assert.Empty(results!);
     }
 
+
+    [Fact]
+    public async Task ReserveEndpointReturns400ForMissingRequestBody()
+    {
+        using var client = factory.CreateClient();
+        using var content = new StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await client.PostAsync("/api/hotels/reserve", content);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Reservation request body is required.", body);
+    }
+
     [Fact]
     public async Task ReserveEndpointReturns422ForInternationalNationalIdMismatch()
     {
