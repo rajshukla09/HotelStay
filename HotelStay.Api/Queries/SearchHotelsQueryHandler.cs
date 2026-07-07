@@ -15,13 +15,28 @@ public sealed class SearchHotelsQueryHandler
 
     public async Task<OperationResult<IReadOnlyList<HotelRoomResult>>> HandleAsync(SearchHotelsQuery query, CancellationToken cancellationToken)
     {
-        if (query.CheckOut <= query.CheckIn)
+        if (string.IsNullOrWhiteSpace(query.Destination))
+        {
+            return OperationResult<IReadOnlyList<HotelRoomResult>>.Failure("Destination is required.", StatusCodes.Status400BadRequest);
+        }
+
+        if (query.CheckIn is null)
+        {
+            return OperationResult<IReadOnlyList<HotelRoomResult>>.Failure("CheckIn is required.", StatusCodes.Status400BadRequest);
+        }
+
+        if (query.CheckOut is null)
+        {
+            return OperationResult<IReadOnlyList<HotelRoomResult>>.Failure("CheckOut is required.", StatusCodes.Status400BadRequest);
+        }
+
+        if (query.CheckOut.Value <= query.CheckIn.Value)
         {
             return OperationResult<IReadOnlyList<HotelRoomResult>>.Failure("CheckOut must be after CheckIn.", StatusCodes.Status400BadRequest);
         }
 
         var providerResults = await Task.WhenAll(providers.Select(provider =>
-            provider.SearchAsync(query.Destination, query.CheckIn, query.CheckOut, query.RoomType, cancellationToken)));
+            provider.SearchAsync(query.Destination, query.CheckIn.Value, query.CheckOut.Value, query.RoomType, cancellationToken)));
 
         var results = providerResults
             .SelectMany(result => result)

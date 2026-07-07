@@ -1,5 +1,4 @@
 using HotelStay.Api.Commands;
-using HotelStay.Api.Endpoints;
 using HotelStay.Api.Middleware;
 using HotelStay.Api.Providers;
 using HotelStay.Api.Queries;
@@ -8,6 +7,7 @@ using HotelStay.Api.Stores;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<IHotelProvider, PremierStaysProvider>();
@@ -30,11 +30,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }))
-    .WithName("HealthCheck")
-    .WithOpenApi();
-
-app.MapHotelEndpoints();
+app.MapControllers();
 
 app.Run();
 
