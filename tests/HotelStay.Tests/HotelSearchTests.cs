@@ -1,0 +1,136 @@
+using System.Net;
+using System.Net.Http.Json;
+using HotelStay.Application.Interfaces;
+using HotelStay.Application.Models;
+using HotelStay.Application.Queries;
+using HotelStay.Domain.Enums;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+
+namespace HotelStay.Tests;
+
+public sealed class HotelSearchTests : IClassFixture<WebApplicationFactory<Program>>
+{
+    private readonly WebApplicationFactory<Program> factory;
+
+    public HotelSearchTests(WebApplicationFactory<Program> factory)
+    {
+        this.factory = factory;
+    }
+
+    [Fact]
+    public async Task SearchEndpointReturnsNormalizedResultsSortedByTotalPrice()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/hotels/search?destination=Paris&checkIn=2026-09-01&checkOut=2026-09-04");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var results = await response.Content.ReadFromJsonAsync<IReadOnlyList<HotelRoomResult>>();
+        Assert.NotNull(results);
+        Assert.NotEmpty(results);
+        Assert.Equal(results!.OrderBy(result => result.TotalPrice), results);
+        Assert.All(results, result =>
+        {
+            Assert.Equal("Paris", result.Destination);
+            Assert.Equal(result.PerNightRate * 3, result.TotalPrice);
+            Assert.False(string.IsNullOrWhiteSpace(result.Provider));
+            Assert.False(string.IsNullOrWhiteSpace(result.RoomId));
+        });
+    }
+
+    [Fact]
+    public async Task SearchEndpointFiltersByRoomType()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/hotels/search?destination=Paris&checkIn=2026-09-01&checkOut=2026-09-04&roomType=Deluxe");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var results = await response.Content.ReadFromJsonAsync<IReadOnlyList<HotelRoomResult>>();
+        Assert.NotNull(results);
+        Assert.NotEmpty(results);
+        Assert.All(results!, result => Assert.Equal(RoomType.Deluxe, result.RoomType));
+    }
+
+    [Theory]
+    [InlineData("/api/hotels/search?checkIn=2026-09-01&checkOut=2026-09-04", "Destination is required.")]
+    [InlineData("/api/hotels/search?destination=Paris&checkOut=2026-09-04", "Check-in date is required.")]
+    [InlineData("/api/hotels/search?destination=Paris&checkIn=2026-09-01", "Check-out date is required.")]
+    [InlineData("/api/hotels/search?destination=Paris&checkIn=2026-09-04&checkOut=2026-09-01", "Check-out date must be after check-in date.")]
+    public async Task SearchEndpointValidatesRequiredQueryParameters(string url, string expectedMessage)
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync(url);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains(expectedMessage, body);
+    }
+
+    [Fact]
+    public async Task SwaggerIncludesHotelSearchEndpoint()
+    {
+        using var client = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Development")).CreateClient();
+
+        var swagger = await client.GetStringAsync("/swagger/v1/swagger.json");
+
+        Assert.Contains("/api/Hotels/search", swagger);
+        Assert.Contains("destination", swagger);
+        Assert.Contains("checkIn", swagger);
+        Assert.Contains("checkOut", swagger);
+    }
+
+    [Fact]
+    public async Task HandlerCalculatesTotalStayAndSortsProviderResults()
+    {
+        var handler = new SearchHotelsQueryHandler(new IHotelProvider[]
+        {
+            new StubHotelProvider("Expensive", 200m),
+            new StubHotelProvider("Affordable", 100m)
+        });
+
+        var result = await handler.HandleAsync(
+            new SearchHotelsQuery("Rome", new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 5), RoomType.Standard),
+            CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.NotNull(result.Value);
+        Assert.Equal(new[] { 400m, 800m }, result.Value!.Select(room => room.TotalPrice).ToArray());
+    }
+
+    private sealed class StubHotelProvider : IHotelProvider
+    {
+        private readonly decimal nightlyRate;
+
+        public StubHotelProvider(string providerName, decimal nightlyRate)
+        {
+            ProviderName = providerName;
+            this.nightlyRate = nightlyRate;
+        }
+
+        public string ProviderName { get; }
+
+        public Task<IReadOnlyCollection<HotelRoomResult>> SearchAsync(HotelSearchRequest request, CancellationToken cancellationToken)
+        {
+            var nights = request.CheckOut.DayNumber - request.CheckIn.DayNumber;
+            IReadOnlyCollection<HotelRoomResult> results =
+            [
+                new HotelRoomResult(
+                    $"{ProviderName}-standard",
+                    ProviderName,
+                    $"{request.Destination} {ProviderName}",
+                    request.Destination,
+                    RoomType.Standard,
+                    nightlyRate,
+                    nightlyRate * nights,
+                    CancellationPolicy.Flexible24Hours,
+                    null,
+                    null)
+            ];
+
+            return Task.FromResult(results);
+        }
+    }
+}

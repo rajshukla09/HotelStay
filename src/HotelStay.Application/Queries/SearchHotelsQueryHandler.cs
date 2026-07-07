@@ -1,5 +1,4 @@
 using HotelStay.Application.Models;
-using HotelStay.Domain.Enums;
 using HotelStay.Application.Interfaces;
 using HotelStay.Application.Common;
 
@@ -23,21 +22,27 @@ public sealed class SearchHotelsQueryHandler
 
         if (query.CheckIn is null)
         {
-            return OperationResult<IReadOnlyList<HotelRoomResult>>.Failure("CheckIn is required.", ApplicationStatusCodes.Status400BadRequest);
+            return OperationResult<IReadOnlyList<HotelRoomResult>>.Failure("Check-in date is required.", ApplicationStatusCodes.Status400BadRequest);
         }
 
         if (query.CheckOut is null)
         {
-            return OperationResult<IReadOnlyList<HotelRoomResult>>.Failure("CheckOut is required.", ApplicationStatusCodes.Status400BadRequest);
+            return OperationResult<IReadOnlyList<HotelRoomResult>>.Failure("Check-out date is required.", ApplicationStatusCodes.Status400BadRequest);
         }
 
         if (query.CheckOut.Value <= query.CheckIn.Value)
         {
-            return OperationResult<IReadOnlyList<HotelRoomResult>>.Failure("CheckOut must be after CheckIn.", ApplicationStatusCodes.Status400BadRequest);
+            return OperationResult<IReadOnlyList<HotelRoomResult>>.Failure("Check-out date must be after check-in date.", ApplicationStatusCodes.Status400BadRequest);
         }
 
+        var request = new HotelSearchRequest(
+            query.Destination.Trim(),
+            query.CheckIn.Value,
+            query.CheckOut.Value,
+            query.RoomType);
+
         var providerResults = await Task.WhenAll(providers.Select(provider =>
-            provider.SearchAsync(query.Destination, query.CheckIn.Value, query.CheckOut.Value, query.RoomType, cancellationToken)));
+            provider.SearchAsync(request, cancellationToken)));
 
         var results = providerResults
             .SelectMany(result => result)
