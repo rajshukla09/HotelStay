@@ -204,6 +204,7 @@ Successful response: `200 OK` with a `ReservationResponse` containing the genera
 
 Validation responses:
 
+- `400 Bad Request` when the request body is missing.
 - `400 Bad Request` when `roomId` or `provider` is missing.
 - `400 Bad Request` when `guestName` is missing.
 - `400 Bad Request` when `documentNumber` is missing.
