@@ -20,9 +20,29 @@ public sealed class ReserveHotelCommandHandler
     public async Task<OperationResult<ReservationResponse>> HandleAsync(ReserveHotelCommand command, CancellationToken cancellationToken)
     {
         var request = command.Request;
+        if (string.IsNullOrWhiteSpace(request.RoomId))
+        {
+            return OperationResult<ReservationResponse>.Failure("RoomId is required.", ApplicationStatusCodes.Status400BadRequest);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Provider))
+        {
+            return OperationResult<ReservationResponse>.Failure("Provider is required.", ApplicationStatusCodes.Status400BadRequest);
+        }
+
         if (string.IsNullOrWhiteSpace(request.GuestName))
         {
             return OperationResult<ReservationResponse>.Failure("GuestName is required.", ApplicationStatusCodes.Status400BadRequest);
+        }
+
+        if (request.CheckOut <= request.CheckIn)
+        {
+            return OperationResult<ReservationResponse>.Failure("Check-out date must be after check-in date.", ApplicationStatusCodes.Status400BadRequest);
+        }
+
+        if (request.PerNightRate <= 0 || request.TotalPrice <= 0)
+        {
+            return OperationResult<ReservationResponse>.Failure("Reservation pricing must be greater than zero.", ApplicationStatusCodes.Status400BadRequest);
         }
 
         var validation = documentValidationService.Validate(request.Destination, request.DocumentType, request.DocumentNumber);

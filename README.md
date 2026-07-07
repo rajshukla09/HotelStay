@@ -88,18 +88,22 @@ POST /api/hotels/reserve
 Content-Type: application/json
 
 {
-  "hotelId": "A-SYD-001",
-  "roomId": "A-SYD-001-STD",
+  "roomId": "PremierStays-Sydney-ps-standard",
+  "provider": "PremierStays",
   "destination": "Sydney",
   "checkIn": "2026-07-08",
   "checkOut": "2026-07-10",
+  "roomType": "Standard",
+  "perNightRate": 145,
+  "totalPrice": 290,
   "guestName": "Alex Guest",
   "documentType": "NationalId",
-  "documentNumber": "NAT-123456"
+  "documentNumber": "NAT-123456",
+  "cancellationPolicy": "FreeCancellation48Hours"
 }
 ```
 
-Domestic destinations accept National ID. International destinations require Passport. Invalid document and destination mismatches return `422 Unprocessable Entity`.
+Domestic destinations accept `NationalId` or `Passport`. International destinations require `Passport`. Invalid document and unsupported destination mismatches return `422 Unprocessable Entity`.
 
 ## Assumptions
 

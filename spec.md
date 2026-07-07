@@ -91,7 +91,7 @@ public sealed record ReservationDetails(
 
 ## Application models
 
-Implemented API/application DTOs:
+Implemented API/application DTOs. The API configures JSON enum string conversion, so request and response examples use enum names such as `Standard`, `NationalId`, and `FreeCancellation48Hours`:
 
 ```csharp
 public sealed record HotelSearchRequest(
@@ -204,8 +204,11 @@ Successful response: `200 OK` with a `ReservationResponse` containing the genera
 
 Validation responses:
 
+- `400 Bad Request` when `roomId` or `provider` is missing.
 - `400 Bad Request` when `guestName` is missing.
 - `400 Bad Request` when `documentNumber` is missing.
+- `400 Bad Request` when `checkOut` is not after `checkIn`.
+- `400 Bad Request` when supplied pricing is not greater than zero.
 - `422 Unprocessable Entity` when the destination is unsupported.
 - `422 Unprocessable Entity` when an international destination is reserved with `NationalId` instead of `Passport`.
 
@@ -264,8 +267,12 @@ Search validation:
 
 Reservation validation:
 
+- `roomId` is required.
+- `provider` is required.
 - `guestName` is required.
 - `documentNumber` is required.
+- `checkOut` must be after `checkIn`.
+- `perNightRate` and `totalPrice` must be greater than zero.
 - `destination` must exist in the shared destination catalog.
 - The document type must satisfy the destination category rules below.
 
@@ -318,7 +325,7 @@ Implemented tests cover both API and business behavior:
 - Room type filtering.
 - Unknown search destinations return an empty result set.
 - Search query validation failures return `400 Bad Request`.
-- Swagger includes the hotel search endpoint in Development.
+- Swagger includes the hotel search endpoint in Development and schema examples for room results, reservation requests, reservation responses, and reservation details.
 - Provider determinism for `PremierStaysProvider` and `BudgetNestsProvider`.
 - Provider handling of unavailable rooms.
 - Destination catalog domestic and international city definitions.

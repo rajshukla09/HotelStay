@@ -14,7 +14,7 @@ Architecture prompts were used to plan a Clean Architecture structure with separ
 
 ## Backend Implementation
 
-Backend implementation prompts supported the hotel search flow, provider result normalization, reservation creation, reservation lookup, document validation, and consistent error handling. AI was also used to assist with Swagger setup and FluentValidation rules so the API behavior was easier to exercise and validate during review.
+Backend implementation prompts supported the hotel search flow, provider result normalization, reservation creation, reservation lookup, document validation, and consistent error handling. AI was also used to assist with Swagger setup and explicit application-layer validation rules so the API behavior was easier to exercise and validate during review.
 
 ## Blazor UI
 
