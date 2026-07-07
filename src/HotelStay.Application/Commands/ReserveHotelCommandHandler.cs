@@ -37,7 +37,7 @@ public sealed class ReserveHotelCommandHandler
             request.RoomId,
             request.Provider,
             request.Destination,
-            validation.Value.GetValueOrDefault(),
+            validation.Value!,
             request.CheckIn,
             request.CheckOut,
             request.RoomType,
