@@ -1,6 +1,10 @@
 # Hotel Stay Availability
 
-Hotel Stay Availability is a .NET 8 case study for searching hotel availability across external providers. This repository currently contains the initial solution structure, project scaffolding, and planning documentation only. Business logic and provider integrations are intentionally not implemented yet.
+Hotel Stay Availability is a .NET 8 case study for searching hotel availability across external providers and making in-memory reservations through ASP.NET Core controllers.
+
+## Architecture
+
+The backend now follows a Clean Architecture layout with domain rules, application use cases, infrastructure implementations, and API hosting concerns split into separate projects.
 
 ## Repository structure
 
@@ -10,10 +14,23 @@ hotel-stay/
 ├── spec.md
 ├── prompts.md
 ├── reflection.md
-├── HotelStay.Api/
-├── HotelStay.Tests/
-└── HotelStay.Blazor/
+├── src/
+│   ├── HotelStay.Api/
+│   ├── HotelStay.Application/
+│   ├── HotelStay.Domain/
+│   ├── HotelStay.Infrastructure/
+│   └── HotelStay.Blazor/
+└── tests/
+    └── HotelStay.Tests/
 ```
+
+## Project responsibilities
+
+- `HotelStay.Domain` contains domain enums and reservation entities. It has no project references.
+- `HotelStay.Application` contains DTOs, CQRS commands, queries, handlers, application interfaces, and operation results. It references `HotelStay.Domain` only.
+- `HotelStay.Infrastructure` contains provider stubs, the in-memory reservation store, document validation, and DI registration. It references `HotelStay.Application` and `HotelStay.Domain`.
+- `HotelStay.Api` contains ASP.NET Core controllers, middleware, Swagger setup, and `Program.cs`. It references `HotelStay.Application` and `HotelStay.Infrastructure` and maps controllers with `app.MapControllers()`.
+- `HotelStay.Tests` references the backend projects as needed for integration and application tests.
 
 ## Prerequisites
 
@@ -29,15 +46,15 @@ dotnet build HotelStay.sln
 ## Run the API
 
 ```bash
-dotnet run --project HotelStay.Api
+dotnet run --project src/HotelStay.Api
 ```
 
-The API currently exposes a development health endpoint at `/health`.
+The API exposes a development health endpoint at `/health` and hotel controller endpoints under `/api/hotels`.
 
 ## Run the Blazor WebAssembly app
 
 ```bash
-dotnet run --project HotelStay.Blazor
+dotnet run --project src/HotelStay.Blazor
 ```
 
 ## Run tests
