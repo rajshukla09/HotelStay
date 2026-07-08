@@ -66,6 +66,28 @@ public sealed class ApiClient : IApiClient
         }
     }
 
+
+    public async Task<ApiResult<TResponse>> PostMultipartAsync<TResponse>(string requestUri, MultipartFormDataContent content, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var response = await httpClient.PostAsync(requestUri, content, cancellationToken);
+            return await ToApiResultAsync<TResponse>(response, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return ApiResult<TResponse>.Failure("The request was canceled.", 0);
+        }
+        catch (HttpRequestException ex)
+        {
+            return ApiResult<TResponse>.Failure($"Unable to reach the HotelStay API. {ex.Message}", 0);
+        }
+        catch (Exception ex)
+        {
+            return ApiResult<TResponse>.Failure($"Unexpected error while calling the HotelStay API. {ex.Message}", 0);
+        }
+    }
+
     private static async Task<ApiResult<TResponse>> ToApiResultAsync<TResponse>(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         var statusCode = (int)response.StatusCode;

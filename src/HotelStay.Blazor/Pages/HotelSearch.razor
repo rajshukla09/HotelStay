@@ -1,5 +1,6 @@
 @page "/hotels"
 @inject IHotelApiService HotelApiService
+@using Microsoft.AspNetCore.Components.Forms
 
 <section class="page-header">
     <p class="eyebrow">Guest booking flow</p>
@@ -172,6 +173,10 @@
                 <label>
                     Document number
                     <InputText class="form-control" @bind-Value="reservationForm.DocumentNumber" />
+                </label>
+                <label>
+                    Document upload (PDF, JPG, or PNG; max 5 MB)
+                    <InputFile class="form-control" OnChange="OnReservationDocumentSelected" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" />
                 </label>
             </div>
 
@@ -418,6 +423,27 @@
             reservationValidationErrors.Add("Document number is required.");
         }
 
+        if (reservationForm.DocumentFile is null)
+        {
+            reservationValidationErrors.Add("Reservation document file is required.");
+        }
+        else
+        {
+            var extension = Path.GetExtension(reservationForm.DocumentFile.Name);
+            var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".pdf", ".jpg", ".jpeg", ".png" };
+            var allowedContentTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "application/pdf", "image/jpeg", "image/png" };
+
+            if (!allowedExtensions.Contains(extension) || !allowedContentTypes.Contains(reservationForm.DocumentFile.ContentType))
+            {
+                reservationValidationErrors.Add("Reservation document must be a PDF, JPG, or PNG file.");
+            }
+
+            if (reservationForm.DocumentFile.Size > 5 * 1024 * 1024)
+            {
+                reservationValidationErrors.Add("Reservation document must be 5 MB or smaller.");
+            }
+        }
+
         if (DestinationCatalog.TryGetCategory(room.Destination, out var category)
             && category == DestinationCategory.International
             && documentType != DocumentType.Passport)
@@ -430,8 +456,13 @@
             return false;
         }
 
-        request = new ReserveHotelRequest(room, checkIn, checkOut, reservationForm.GuestName.Trim(), documentType, reservationForm.DocumentNumber.Trim());
+        request = new ReserveHotelRequest(room, checkIn, checkOut, reservationForm.GuestName.Trim(), documentType, reservationForm.DocumentNumber.Trim(), reservationForm.DocumentFile!);
         return true;
+    }
+
+    private void OnReservationDocumentSelected(InputFileChangeEventArgs args)
+    {
+        reservationForm.DocumentFile = args.File;
     }
 
     private void NewSearch()
@@ -441,6 +472,7 @@
         reservationForm.GuestName = string.Empty;
         reservationForm.DocumentType = string.Empty;
         reservationForm.DocumentNumber = string.Empty;
+        reservationForm.DocumentFile = null;
         errorMessage = null;
     }
 
@@ -483,5 +515,6 @@
         public string GuestName { get; set; } = string.Empty;
         public string DocumentType { get; set; } = string.Empty;
         public string DocumentNumber { get; set; } = string.Empty;
+        public IBrowserFile? DocumentFile { get; set; }
     }
 }

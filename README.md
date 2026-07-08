@@ -130,3 +130,16 @@ Domestic destinations accept `NationalId` or `Passport`. International destinati
 - Reservation flow works.
 - `422` document validation works.
 - Reservation lookup works.
+
+## Reservation document uploads
+
+`POST /api/hotels/reserve` now accepts `multipart/form-data`. In addition to the selected room/provider details, guest name, document type, and document number, callers must include a `DocumentFile` upload.
+
+Upload rules:
+- File is mandatory for every reservation.
+- Allowed formats: PDF, JPG/JPEG, or PNG.
+- Maximum size: 5 MB.
+- International destinations require `Passport`.
+- Domestic destinations accept `NationalId`.
+
+Uploaded documents are stored locally for this demo under `src/HotelStay.Api/App_Data/ReservationDocuments` using a generated reservation-reference filename. Original filenames are not exposed. Reservation lookup returns document metadata only, including a masked document number and stored file reference, never file content.

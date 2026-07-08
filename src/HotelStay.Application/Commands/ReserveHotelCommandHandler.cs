@@ -10,11 +10,13 @@ public sealed class ReserveHotelCommandHandler
 {
     private readonly IDocumentValidationService documentValidationService;
     private readonly IReservationStore reservationStore;
+    private readonly IReservationDocumentStorage reservationDocumentStorage;
 
-    public ReserveHotelCommandHandler(IDocumentValidationService documentValidationService, IReservationStore reservationStore)
+    public ReserveHotelCommandHandler(IDocumentValidationService documentValidationService, IReservationStore reservationStore, IReservationDocumentStorage reservationDocumentStorage)
     {
         this.documentValidationService = documentValidationService;
         this.reservationStore = reservationStore;
+        this.reservationDocumentStorage = reservationDocumentStorage;
     }
 
     public async Task<OperationResult<ReservationResponse>> HandleAsync(ReserveHotelCommand command, CancellationToken cancellationToken)
@@ -51,7 +53,13 @@ public sealed class ReserveHotelCommandHandler
             return OperationResult<ReservationResponse>.Failure(validation.ErrorMessage!, validation.StatusCode!.Value);
         }
 
+        if (command.UploadedDocument is null)
+        {
+            return OperationResult<ReservationResponse>.Failure("Reservation document file is required.", ApplicationStatusCodes.Status400BadRequest);
+        }
+
         var reference = GenerateReference(request);
+        var uploadedFileName = await reservationDocumentStorage.SaveAsync(reference, command.UploadedDocument, cancellationToken);
         var reservation = new ReservationDetails(
             reference,
             request.RoomId,
@@ -66,11 +74,23 @@ public sealed class ReserveHotelCommandHandler
             request.CancellationPolicy,
             request.GuestName,
             request.DocumentType,
-            request.DocumentNumber,
+            MaskDocumentNumber(request.DocumentNumber),
+            uploadedFileName,
             DateTimeOffset.UtcNow);
 
         await reservationStore.SaveAsync(reservation, cancellationToken);
         return OperationResult<ReservationResponse>.Success(new ReservationResponse(reference, "Reservation confirmed.", request.TotalPrice, request.CancellationPolicy));
+    }
+
+    private static string MaskDocumentNumber(string documentNumber)
+    {
+        if (string.IsNullOrWhiteSpace(documentNumber))
+        {
+            return string.Empty;
+        }
+
+        var visible = Math.Min(4, documentNumber.Length);
+        return new string('•', Math.Max(0, documentNumber.Length - visible)) + documentNumber[^visible..];
     }
 
     private static string GenerateReference(ReservationRequest request)

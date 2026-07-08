@@ -13,6 +13,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IHotelProvider, PremierStaysProvider>();
         services.AddSingleton<IHotelProvider, BudgetNestsProvider>();
         services.AddSingleton<IDocumentValidationService, DocumentValidationService>();
+        services.AddSingleton<IReservationDocumentStorage, LocalReservationDocumentStorage>();
         services.AddSingleton<IReservationStore, InMemoryReservationStore>();
 
         return services;

@@ -258,11 +258,11 @@ public sealed class HotelStayBusinessTests
     {
         // Arrange
         var store = new InMemoryReservationStore();
-        var handler = new ReserveHotelCommandHandler(new DocumentValidationService(), store);
+        var handler = new ReserveHotelCommandHandler(new DocumentValidationService(), store, new TestReservationDocumentStorage());
         var request = ReservationRequest(destination: "Sydney", documentType: DocumentType.NationalId);
 
         // Act
-        var result = await handler.HandleAsync(new ReserveHotelCommand(request), CancellationToken.None);
+        var result = await handler.HandleAsync(new ReserveHotelCommand(request, TestDocument()), CancellationToken.None);
 
         // Assert
         Assert.True(result.Succeeded);
@@ -282,11 +282,11 @@ public sealed class HotelStayBusinessTests
     {
         // Arrange
         var store = new InMemoryReservationStore();
-        var handler = new ReserveHotelCommandHandler(new DocumentValidationService(), store);
+        var handler = new ReserveHotelCommandHandler(new DocumentValidationService(), store, new TestReservationDocumentStorage());
         var request = ReservationRequest(destination: "Tokyo", documentType: DocumentType.NationalId);
 
         // Act
-        var result = await handler.HandleAsync(new ReserveHotelCommand(request), CancellationToken.None);
+        var result = await handler.HandleAsync(new ReserveHotelCommand(request, TestDocument()), CancellationToken.None);
 
         // Assert
         Assert.False(result.Succeeded);
@@ -313,13 +313,13 @@ public sealed class HotelStayBusinessTests
     {
         // Arrange
         var store = new InMemoryReservationStore();
-        var handler = new ReserveHotelCommandHandler(new DocumentValidationService(), store);
+        var handler = new ReserveHotelCommandHandler(new DocumentValidationService(), store, new TestReservationDocumentStorage());
         var request = new ReservationRequest(
             roomId, provider, "Sydney", new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 4),
             RoomType.Deluxe, perNightRate, totalPrice, guestName, DocumentType.NationalId, documentNumber);
 
         // Act
-        var result = await handler.HandleAsync(new ReserveHotelCommand(request), CancellationToken.None);
+        var result = await handler.HandleAsync(new ReserveHotelCommand(request, TestDocument()), CancellationToken.None);
 
         // Assert
         Assert.False(result.Succeeded);
@@ -332,13 +332,13 @@ public sealed class HotelStayBusinessTests
     {
         // Arrange
         var store = new InMemoryReservationStore();
-        var handler = new ReserveHotelCommandHandler(new DocumentValidationService(), store);
+        var handler = new ReserveHotelCommandHandler(new DocumentValidationService(), store, new TestReservationDocumentStorage());
         var request = new ReservationRequest(
             "room-1", "PremierStays", "Sydney", new DateOnly(2026, 11, 4), new DateOnly(2026, 11, 4),
             RoomType.Deluxe, 200m, 600m, "Jordan Guest", DocumentType.NationalId, "DOC123");
 
         // Act
-        var result = await handler.HandleAsync(new ReserveHotelCommand(request), CancellationToken.None);
+        var result = await handler.HandleAsync(new ReserveHotelCommand(request, TestDocument()), CancellationToken.None);
 
         // Assert
         Assert.False(result.Succeeded);
@@ -354,7 +354,7 @@ public sealed class HotelStayBusinessTests
         var reservation = new ReservationDetails(
             "HST-TEST-123456", "room-1", "PremierStays", "Melbourne", DestinationCategory.Domestic,
             new DateOnly(2026, 12, 1), new DateOnly(2026, 12, 3), RoomType.Standard, 120m, 240m,
-            CancellationPolicy.FreeCancellation48Hours, "Casey Guest", DocumentType.NationalId, "N123", DateTimeOffset.UtcNow);
+            CancellationPolicy.FreeCancellation48Hours, "Casey Guest", DocumentType.NationalId, "••123", "HST-TEST-123456.pdf", DateTimeOffset.UtcNow);
         await store.SaveAsync(reservation, CancellationToken.None);
         var handler = new GetReservationByReferenceQueryHandler(store);
 
@@ -379,6 +379,19 @@ public sealed class HotelStayBusinessTests
     private static ReservationRequest ReservationRequest(string destination, DocumentType documentType) =>
         new("room-1", "PremierStays", destination, new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 4),
             RoomType.Deluxe, 200m, 600m, "Jordan Guest", documentType, "DOC123");
+
+
+    private static UploadedReservationDocument TestDocument() => new(
+        "document.pdf",
+        "application/pdf",
+        4,
+        () => new MemoryStream([1, 2, 3, 4]));
+
+    private sealed class TestReservationDocumentStorage : IReservationDocumentStorage
+    {
+        public Task<string> SaveAsync(string reservationReference, UploadedReservationDocument document, CancellationToken cancellationToken)
+            => Task.FromResult($"{reservationReference}.pdf");
+    }
 
     private sealed class CountingProvider : IHotelProvider
     {

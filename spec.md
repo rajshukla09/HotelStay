@@ -354,3 +354,31 @@ Potential production extensions:
 - Add authentication and authorization for reservation operations.
 - Add real provider integrations with resilient HTTP clients, retries, timeouts, and provider health checks.
 - Add pagination, richer filtering, and currency handling if provider result volumes or pricing complexity increase.
+
+## Reservation upload contract update
+
+### POST `/api/hotels/reserve`
+
+Content type: `multipart/form-data`.
+
+Form fields:
+- `RoomId`, `Provider`, `Destination`, `CheckIn`, `CheckOut`, `RoomType`, `PerNightRate`, `TotalPrice`, `CancellationPolicy`
+- `GuestName`
+- `DocumentType` (`Passport` or `NationalId`)
+- `DocumentNumber`
+- `DocumentFile` (required file upload)
+
+Validation:
+- `DocumentFile` is required.
+- `DocumentFile` must be PDF, JPG/JPEG, or PNG by extension and content type.
+- `DocumentFile` must be 5 MB or smaller.
+- International destinations require `Passport`; domestic destinations accept `NationalId`.
+
+Responses:
+- `200 OK`: `ReservationResponse` with reservation reference.
+- `400 Bad Request`: missing/invalid upload or malformed reservation fields.
+- `422 Unprocessable Entity`: document type does not match destination rules.
+
+### GET `/api/hotels/reservation/{reference}`
+
+Returns reservation details and document metadata only. Document metadata includes document type, masked document number, and the stored upload filename/reference. File content and original filenames are not returned.

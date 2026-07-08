@@ -154,3 +154,7 @@ The following architectural decisions were made during implementation:
 AI was used to accelerate analysis, implementation, testing, and documentation throughout the project.
 
 All generated code, architectural decisions, documentation, and tests were manually reviewed, refined, executed, and validated against the case study requirements before submission. AI was used as a development assistant rather than a replacement for engineering judgement.
+
+## Decision note: reservation document uploads
+
+Added mandatory document upload to the reservation flow using `multipart/form-data` so room/provider fields and guest document fields travel with the uploaded evidence in a single request. Validation is split between client-side usability checks and server-side enforcement. Uploaded files are written to local demo storage with a reservation-reference filename instead of exposing the original filename.
