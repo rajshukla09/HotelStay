@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# Local reservation document uploads
+src/HotelStay.Api/App_Data/ReservationDocuments/*
+!src/HotelStay.Api/App_Data/ReservationDocuments/.gitkeep

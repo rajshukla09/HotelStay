@@ -24,8 +24,11 @@ public sealed class HotelApiService : IHotelApiService
         return apiClient.GetAsync<IReadOnlyList<HotelRoomResult>>($"api/hotels/search?{string.Join('&', query)}", cancellationToken);
     }
 
-    public Task<ApiResult<ReservationResponse>> ReserveHotelAsync(ReserveHotelRequest request, CancellationToken cancellationToken = default)
-        => apiClient.PostAsync<ReservationRequest, ReservationResponse>("api/hotels/reserve", request.ToApiRequest(), cancellationToken);
+    public async Task<ApiResult<ReservationResponse>> ReserveHotelAsync(ReserveHotelRequest request, CancellationToken cancellationToken = default)
+    {
+        using var content = request.ToMultipartFormData();
+        return await apiClient.PostMultipartAsync<ReservationResponse>("api/hotels/reserve", content, cancellationToken);
+    }
 
     public Task<ApiResult<ReservationDetails>> GetReservationAsync(string reference, CancellationToken cancellationToken = default)
         => apiClient.GetAsync<ReservationDetails>($"api/hotels/reservation/{Uri.EscapeDataString(reference)}", cancellationToken);

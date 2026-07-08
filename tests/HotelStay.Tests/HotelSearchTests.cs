@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using HotelStay.Application.Interfaces;
@@ -80,36 +81,51 @@ public sealed class HotelSearchTests : IClassFixture<WebApplicationFactory<Progr
 
 
     [Fact]
-    public async Task ReserveEndpointReturns400ForMissingRequestBody()
+    public async Task ReserveEndpointReturns400ForMissingDocumentFile()
     {
         using var client = factory.CreateClient();
-        using var content = new StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
+        using var content = CreateReservationForm("Sydney", DocumentType.NationalId, includeFile: false);
 
         var response = await client.PostAsync("/api/hotels/reserve", content);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Reservation request body is required.", body);
+        Assert.Contains("Reservation document file is required.", body);
+    }
+
+    [Fact]
+    public async Task ReserveEndpointReturns400ForInvalidDocumentFileType()
+    {
+        using var client = factory.CreateClient();
+        using var content = CreateReservationForm("Sydney", DocumentType.NationalId, fileName: "document.txt", contentType: "text/plain");
+
+        var response = await client.PostAsync("/api/hotels/reserve", content);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Reservation document must be a PDF, JPG, or PNG file.", body);
+    }
+
+    [Fact]
+    public async Task ReserveEndpointReturns400ForOversizedDocumentFile()
+    {
+        using var client = factory.CreateClient();
+        using var content = CreateReservationForm("Sydney", DocumentType.NationalId, fileBytes: new byte[(5 * 1024 * 1024) + 1]);
+
+        var response = await client.PostAsync("/api/hotels/reserve", content);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Reservation document must be 5 MB or smaller.", body);
     }
 
     [Fact]
     public async Task ReserveEndpointReturns422ForInternationalNationalIdMismatch()
     {
         using var client = factory.CreateClient();
-        var request = new ReservationRequest(
-            "room-1",
-            "PremierStays",
-            "Tokyo",
-            new DateOnly(2026, 9, 1),
-            new DateOnly(2026, 9, 4),
-            RoomType.Deluxe,
-            200m,
-            600m,
-            "Jordan Guest",
-            DocumentType.NationalId,
-            "N123456");
+        using var content = CreateReservationForm("Tokyo", DocumentType.NationalId);
 
-        var response = await client.PostAsJsonAsync("/api/hotels/reserve", request);
+        var response = await client.PostAsync("/api/hotels/reserve", content);
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
@@ -122,20 +138,9 @@ public sealed class HotelSearchTests : IClassFixture<WebApplicationFactory<Progr
     public async Task ReserveEndpointAcceptsCatalogDocumentMatches(string destination, DocumentType documentType)
     {
         using var client = factory.CreateClient();
-        var request = new ReservationRequest(
-            "room-1",
-            "PremierStays",
-            destination,
-            new DateOnly(2026, 9, 1),
-            new DateOnly(2026, 9, 4),
-            RoomType.Deluxe,
-            200m,
-            600m,
-            "Jordan Guest",
-            documentType,
-            "DOC123456");
+        using var content = CreateReservationForm(destination, documentType);
 
-        var response = await client.PostAsJsonAsync("/api/hotels/reserve", request);
+        var response = await client.PostAsync("/api/hotels/reserve", content);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -145,21 +150,9 @@ public sealed class HotelSearchTests : IClassFixture<WebApplicationFactory<Progr
     public async Task ReservationLookupIncludesCancellationPolicy()
     {
         using var client = factory.CreateClient();
-        var request = new ReservationRequest(
-            "room-1",
-            "PremierStays",
-            "Sydney",
-            new DateOnly(2026, 9, 1),
-            new DateOnly(2026, 9, 4),
-            RoomType.Deluxe,
-            200m,
-            600m,
-            "Jordan Guest",
-            DocumentType.NationalId,
-            "DOC123456",
-            CancellationPolicy.NonRefundable);
+        using var content = CreateReservationForm("Sydney", DocumentType.NationalId, cancellationPolicy: CancellationPolicy.NonRefundable);
 
-        var reserveResponse = await client.PostAsJsonAsync("/api/hotels/reserve", request);
+        var reserveResponse = await client.PostAsync("/api/hotels/reserve", content);
         Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
         var confirmation = await reserveResponse.Content.ReadFromJsonAsync<ReservationResponse>(JsonOptions);
         Assert.NotNull(confirmation);
@@ -169,7 +162,9 @@ public sealed class HotelSearchTests : IClassFixture<WebApplicationFactory<Progr
         Assert.Equal(HttpStatusCode.OK, lookupResponse.StatusCode);
         var details = await lookupResponse.Content.ReadFromJsonAsync<ReservationDetails>(JsonOptions);
         Assert.NotNull(details);
-        Assert.Equal(request.CancellationPolicy, details!.CancellationPolicy);
+        Assert.Equal(CancellationPolicy.NonRefundable, details!.CancellationPolicy);
+        Assert.Equal("•••••3456", details.DocumentNumber);
+        Assert.EndsWith(".pdf", details.UploadedDocumentFileName);
     }
 
     [Theory]
@@ -217,6 +212,42 @@ public sealed class HotelSearchTests : IClassFixture<WebApplicationFactory<Progr
         Assert.True(result.Succeeded);
         Assert.NotNull(result.Value);
         Assert.Equal(new[] { 400m, 800m }, result.Value!.Select(room => room.TotalPrice).ToArray());
+    }
+
+
+    private static MultipartFormDataContent CreateReservationForm(
+        string destination,
+        DocumentType documentType,
+        bool includeFile = true,
+        string fileName = "document.pdf",
+        string contentType = "application/pdf",
+        byte[]? fileBytes = null,
+        CancellationPolicy cancellationPolicy = CancellationPolicy.Flexible24Hours)
+    {
+        var content = new MultipartFormDataContent
+        {
+            { new StringContent("room-1"), "RoomId" },
+            { new StringContent("PremierStays"), "Provider" },
+            { new StringContent(destination), "Destination" },
+            { new StringContent("2026-09-01"), "CheckIn" },
+            { new StringContent("2026-09-04"), "CheckOut" },
+            { new StringContent(RoomType.Deluxe.ToString()), "RoomType" },
+            { new StringContent("200"), "PerNightRate" },
+            { new StringContent("600"), "TotalPrice" },
+            { new StringContent("Jordan Guest"), "GuestName" },
+            { new StringContent(documentType.ToString()), "DocumentType" },
+            { new StringContent("DOC123456"), "DocumentNumber" },
+            { new StringContent(cancellationPolicy.ToString()), "CancellationPolicy" }
+        };
+
+        if (includeFile)
+        {
+            var fileContent = new ByteArrayContent(fileBytes ?? [1, 2, 3, 4]);
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+            content.Add(fileContent, "DocumentFile", fileName);
+        }
+
+        return content;
     }
 
     private sealed class StubHotelProvider : IHotelProvider

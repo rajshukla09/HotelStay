@@ -17,4 +17,5 @@ public sealed record ReservationDetails(
     string GuestName,
     DocumentType DocumentType,
     string DocumentNumber,
+    string UploadedDocumentFileName,
     DateTimeOffset CreatedAt);

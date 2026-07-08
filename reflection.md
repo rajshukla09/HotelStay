@@ -63,3 +63,7 @@ The deterministic provider stubs made testing simpler because search behavior is
 ## Conclusion
 
 The solution was intentionally designed to satisfy the case study requirements while remaining clean, extensible, testable, and easy to evolve. It demonstrates the core hotel search and reservation workflows without unnecessary infrastructure, while leaving clear extension points for persistence, real provider integrations, authentication, richer search capabilities, and production operations.
+
+## Reservation upload production considerations
+
+The local `App_Data/ReservationDocuments` storage is demo-only. A production implementation should use secure blob/object storage, malware/virus scanning, encryption at rest and in transit, retention/deletion policy enforcement, audit logging, and strict access control for both metadata and file retrieval.
